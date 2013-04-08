@@ -15,6 +15,35 @@ build-type:          Simple
 cabal-version:       >=1.8
 
 library
-  exposed-modules:     StatusBar.Request, StatusBar.Server
-  -- other-modules:       
-  build-depends:       base ==4.6.*, network ==2.4.*, stm ==2.4.*
+  exposed-modules:
+    StatusBar.Bar,
+    StatusBar.Dzen,
+    StatusBar.Process,
+    StatusBar.Request,
+    StatusBar.Server,
+    StatusBar.Timer,
+    StatusBar.Widget
+  build-depends:
+    base ==4.6.*,
+    hslogger ==1.2.*,
+    process ==1.1.*,
+    network ==2.4.*,
+    stm ==2.4.*
+
+executable StatusBar
+  main-is: StatusBar.hs
+  ghc-options: -threaded -with-rtsopts=-N
+  other-modules:
+    StatusBar.Bar,
+    StatusBar.Dzen,
+    StatusBar.Process,
+    StatusBar.Request,
+    StatusBar.Server,
+    StatusBar.Timer,
+    StatusBar.Widget
+  build-depends:
+    base ==4.6.*,
+    hslogger ==1.2.*,
+    process ==1.1.*,
+    network ==2.4.*,
+    stm ==2.4.*
