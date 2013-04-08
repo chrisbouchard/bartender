@@ -46,14 +46,14 @@ barStartup :: Int -- ^ The number of message handlers to fork
 barStartup n timeout = do
     debugM "StatusBar.Bar.barStartup" $ "Enter"
     (dzenStdin, dzenProc) <- startDzen
-    forkChildFinally (feedDzen dzenStdin) $ \_ -> do
+    forkFinally (feedDzen dzenStdin) $ \_ -> do
         debugM "StatusBar.Bar.barStartup" $ "Child thread has exited"
         debugM "StatusBar.Bar.barStartup" $ "Closing dzen stdin: " ++ show dzenStdin
         hClose dzenStdin
         debugM "StatusBar.Bar.barStartup" $ "Terminating dzen process"
         terminateProcess dzenProc
-    startTimer cleanupDelay cleanupTimerHandler
-    replicateM_ n . forkChild $ processBarMessages
+    newTimer cleanupDelay cleanupTimerAction >>= startTimer
+    replicateM_ n . forkIO $ processBarMessages
     debugM "StatusBar.Bar.barStartup" $ "Started " ++ show n ++ " message processors."
     debugM "StatusBar.Bar.barStartup" $ "Exit"
     where
@@ -98,8 +98,8 @@ barStartup n timeout = do
         cleanupDelay :: Int
         cleanupDelay = 60
 
-        cleanupTimerHandler :: TimerId -> IO ()
-        cleanupTimerHandler tid = do
+        cleanupTimerAction :: IO Bool
+        cleanupTimerAction = do
             debugM "StatusBar.Bar.cleanupTimerHandler" $ "Enter"
             (before, after) <- atomically $ do
                 widgetList <- takeTMVar widgetListVar
@@ -108,8 +108,8 @@ barStartup n timeout = do
                 return (length widgetList, length newWidgetList)
             debugM "StatusBar.Bar.cleanupTimerHandler" $ "Before: " ++ show before
             debugM "StatusBar.Bar.cleanupTimerHandler" $ "After: " ++ show after
-            startTimer cleanupDelay cleanupTimerHandler
             debugM "StatusBar.Bar.cleanupTimerHandler" $ "Exit"
+            return True
 
         getStatus :: STM String
         getStatus = do

@@ -1,4 +1,12 @@
-module StatusBar.Widget where
+module StatusBar.Widget
+    ( Widget, wName, wId, wLock
+    , LockVar
+    , newWidget
+    , updateWidget
+    , widgetHasId
+    , widgetIsDead
+    , widgetStatus
+    ) where
 
 import Control.Applicative
 import Control.Concurrent
@@ -15,15 +23,17 @@ import System.Log.Handler.Simple
 import StatusBar.Dzen
 import StatusBar.Timer
 
+-- | A lock on the widget. When a widget is updated, it will be unlocked. Once
+-- the widget is displayed it should be relocked.
 type LockVar = TMVar ()
 
 -- | A widget on the bar
 data Widget = Widget
-    { wName    :: String
-    , wId      :: Int
-    , wTimeout :: Int
-    , wState   :: TMVar WidgetState
-    , wLock    :: LockVar
+    { wName  :: String
+    , wId    :: Int
+    , wTimer :: Timer
+    , wState :: TMVar WidgetState
+    , wLock  :: LockVar
     }
 
 instance Eq Widget where
@@ -34,7 +44,97 @@ instance Ord Widget where
         compare (lName, lWid) (rName, rWid)
 
 instance Show Widget where
-    show (Widget name wid timeout _ _) = "(Widget " ++ name ++ " " ++ show wid ++ ")"
+    show (Widget name wid _ _ _) = "(Widget " ++ name ++ " " ++ show wid ++ ")"
+
+-- | The state of a widget
+data WidgetState = WidgetState
+    { wsContent :: Maybe String
+    , wsDeath   :: WidgetDeath
+    }
+
+-- | How close to death a widget is
+data WidgetDeath = WDAlive
+                 | WDDying
+                 | WDDead
+    deriving (Show, Eq)
+
+-- The next valid widget id. This is only ever increased, so old ids that
+-- become invalid will not be reused.
+nextIdVar :: TMVar Int
+nextIdVar = unsafePerformIO $ newTMVarIO 0
+
+-- | Create a new widget with the given name
+newWidget :: String -- ^ The widget's name
+          -> Int -- ^ The timeout for the widget's timer
+          -> IO Widget
+newWidget name timeout = do
+    debugM "StatusBar.Widget.newWidget" $ "Enter"
+    wid <- atomically $ do
+        nextId <- takeTMVar nextIdVar
+        putTMVar nextIdVar (nextId + 1)
+        return nextId
+    stateVar <- newEmptyTMVarIO
+    lockVar <- newTMVarIO ()
+    timer <- newTimer timeout $ timerAction stateVar lockVar
+    atomically $ putTMVar stateVar WidgetState
+        { wsContent = Nothing
+        , wsDeath   = WDAlive
+        }
+    startTimer timer
+    debugM "StatusBar.Widget.newWidget" $ "Exit"
+    return $ Widget name wid timer stateVar lockVar
+    where
+        -- Action to run when the widget's timer fires. Move the widget further
+        -- toward death and mark it updated.
+        timerAction :: TMVar WidgetState -> LockVar -> IO Bool
+        timerAction stateVar lockVar = do
+            debugM "StatusBar.Widget.timerAction" $ "Enter"
+            continue <- atomically $ do
+                state <- takeTMVar stateVar
+                let newDeath = advanceDeath $ wsDeath state
+                -- Update the widget with the new state and timer information
+                putTMVar stateVar state {wsDeath = newDeath}
+                -- Try to mark the widget for update, but it may already be marked.
+                tryPutTMVar lockVar ()
+                -- If the widget is dead, stop the timer.
+                return $ newDeath /= WDDead
+            debugM "StatusBar.Widget.timerAction" $ "Return value: " ++ show continue
+            debugM "StatusBar.Widget.timerAction" $ "Exit"
+            return continue
+
+        -- Move the widget ever on toward the end of its life
+        advanceDeath :: WidgetDeath -> WidgetDeath
+        advanceDeath WDAlive = WDDying
+        advanceDeath WDDying = WDDead
+        advanceDeath WDDead  = WDDead
+
+updateWidget :: Widget       -- ^ The widget to touch
+             -> Maybe String -- ^ The optional new content
+             -> IO ()
+updateWidget (Widget _ _ timer stateVar lockVar) mContent = do
+    debugM "StatusBar.Widget.updateWidget" $ "Enter"
+    stopTimer timer
+    join . atomically $ do
+        state <- takeTMVar stateVar
+        let newState = chooseContent mContent $ revertDeath state
+        putTMVar stateVar newState
+        -- Try to mark the widget for update, but it may already be marked.
+        tryPutTMVar lockVar ()
+        -- If the widget is not dead, start the timer again.
+        return $ when (wsDeath newState /= WDDead) $ startTimer timer
+    debugM "StatusBar.Widget.updateWidget" $ "Exit"
+    where
+        -- Replace the widget's content only if there is new content available.
+        chooseContent :: Maybe String -> WidgetState -> WidgetState
+        chooseContent Nothing  state = state
+        chooseContent mContent state = state {wsContent = mContent}
+
+        -- Give the widget a new lease on life, as long as it isn't already
+        -- dead.
+        revertDeath :: WidgetState -> WidgetState
+        revertDeath state
+            | wsDeath state == WDDead = state
+            | otherwise               = state {wsDeath = WDAlive}
 
 widgetHasId :: Int -> Widget -> Bool
 widgetHasId qWid (Widget _ wid _ _ _) = qWid == wid
@@ -61,104 +161,4 @@ widgetIsDead :: Widget -> STM Bool
 widgetIsDead (Widget _ _ _ stateVar _) = do
     state <- readTMVar stateVar
     return $ wsDeath state == WDDead
-
--- | The state of a widget
-data WidgetState = WidgetState
-    { wsContent :: Maybe String
-    , wsTimer   :: Maybe TimerId
-    , wsDeath   :: WidgetDeath
-    }
-
--- | How close to death a widget is
-data WidgetDeath = WDAlive
-                 | WDDying
-                 | WDDead
-    deriving (Show, Eq)
-
--- The next valid widget id. This is only ever increased, so old ids that
--- become invalid will not be reused.
-nextIdVar :: TMVar Int
-nextIdVar = unsafePerformIO $ newTMVarIO 0
-
--- | Create a new widget with the given name
-newWidget :: String -- ^ The widget's name
-          -> Int -- ^ The timeout for the widget's timer
-          -> IO Widget
-newWidget name timeout = do
-    wid <- atomically $ do
-        nextId <- takeTMVar nextIdVar
-        putTMVar nextIdVar (nextId + 1)
-        return nextId
-    stateVar <- newEmptyTMVarIO
-    lockVar <- newTMVarIO ()
-    tid <- startTimer timeout $ timerHandler stateVar lockVar timeout
-    atomically $ putTMVar stateVar WidgetState
-        { wsContent = Nothing
-        , wsTimer   = Just tid
-        , wsDeath   = WDAlive
-        }
-    return $ Widget name wid timeout stateVar lockVar
-
-updateWidget :: Widget -- ^ The widget to touch
-             -> Maybe String -- ^ The optional new content
-             -> IO ()
-updateWidget (Widget _ _ timeout stateVar lockVar) mContent = do
-    newTid <- startTimer timeout $ timerHandler stateVar lockVar timeout
-    join . atomically $ do
-        state <- takeTMVar stateVar
-        -- If an old timer exists, stop it.
-        let stopOldTimerIO = fromMaybe (return ()) $ stopTimer <$> wsTimer state
-        -- If the new timer is pointless, stop it
-        let stopNewTimerIO = when (wsDeath state == WDDead) $ stopTimer newTid
-        -- Compute the new widget state
-        newState <- chooseContent mContent <$> case wsDeath state of
-            WDDead -> return state {wsTimer = Nothing}
-            _      -> return state {wsTimer = Just newTid, wsDeath = WDAlive}
-        putTMVar stateVar newState
-        tryPutTMVar lockVar ()
-        return $ stopOldTimerIO >> stopNewTimerIO
-    where
-        chooseContent :: Maybe String -> WidgetState -> WidgetState
-        chooseContent Nothing  state = state
-        chooseContent mContent state = state {wsContent = mContent}
-
--- Timer handler that advances the death state of the widget
-timerHandler :: TMVar WidgetState -> LockVar -> Int -> TimerId -> IO ()
-timerHandler stateVar lockVar timeout tid = do
-    -- Start the timer no matter what. If we don't want it, we'll get
-    -- rid of it later
-    debugM "StatusBar.Widget.timerHandler" $ "Enter"
-    debugM "StatusBar.Widget.timerHandler" $ "Timer " ++ show tid ++ " fired"
-    state <- atomically $ readTMVar stateVar
-    when (fromMaybe False $ (tid ==) <$> wsTimer state) $ do
-        debugM "StatusBar.Widget.timerHandler" $ "ID matches: " ++ show tid
-        newTid <- startTimer timeout $ timerHandler stateVar lockVar timeout
-        join . atomically $ do
-            state <- takeTMVar stateVar
-            let newDeath = advanceDeath $ wsDeath state
-            let mTid = maybeFromDeath newDeath newTid
-            -- Update the widget with the new state and timer information
-            putTMVar stateVar state
-                { wsDeath = newDeath
-                , wsTimer = mTid
-                }
-            tryPutTMVar lockVar ()
-            -- If the widget is dead, stop the timer. Otherwise don't do
-            -- anything.
-            return $ case newDeath of
-                WDDead -> stopTimer newTid
-                _      -> return ()
-    debugM "StatusBar.Widget.timerHandler" $ "Exit"
-    where
-        -- Return the proper Maybe constructor depending on the widget's death
-        -- state
-        maybeFromDeath :: WidgetDeath -> a -> Maybe a
-        maybeFromDeath WDDead = (\_ -> Nothing)
-        maybeFromDeath _      = Just
-
-        -- Move the widget ever on toward the end of its life
-        advanceDeath :: WidgetDeath -> WidgetDeath
-        advanceDeath WDAlive = WDDying
-        advanceDeath WDDying = WDDead
-        advanceDeath WDDead  = WDDead
 

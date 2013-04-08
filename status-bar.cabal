@@ -26,9 +26,11 @@ library
   build-depends:
     base ==4.6.*,
     hslogger ==1.2.*,
-    process ==1.1.*,
+    mtl ==2.1.*,
     network ==2.4.*,
-    stm ==2.4.*
+    process ==1.1.*,
+    stm ==2.4.*,
+    transformers ==0.3.*
 
 executable StatusBar
   main-is: StatusBar.hs
@@ -44,6 +46,8 @@ executable StatusBar
   build-depends:
     base ==4.6.*,
     hslogger ==1.2.*,
-    process ==1.1.*,
+    mtl ==2.1.*,
     network ==2.4.*,
-    stm ==2.4.*
+    process ==1.1.*,
+    stm ==2.4.*,
+    transformers ==0.3.*
