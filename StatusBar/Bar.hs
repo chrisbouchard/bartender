@@ -1,6 +1,6 @@
 module StatusBar.Bar
     ( barStartup
-    , barRequestHandler
+    , barMessageHandler
     , protocolVersion
     ) where
 
@@ -23,8 +23,7 @@ import System.Log.Handler.Simple
 import System.Process
 
 import StatusBar.Dzen
-import StatusBar.Process
-import StatusBar.Request
+import StatusBar.Message
 import StatusBar.Timer
 import StatusBar.Widget
 
@@ -40,10 +39,11 @@ widgetListVar = unsafePerformIO $ newTMVarIO []
 protocolVersion = 1
 
 -- | Start and initialize the status bar
-barStartup :: Int -- ^ The number of message handlers to fork
-           -> Int -- ^ The timeout for widget timers
+barStartup :: Int      -- ^ The number of message handlers to fork
+           -> Int      -- ^ The timeout for widget timers
+           -> [String] -- ^ The arguments for Dzen
            -> IO ()
-barStartup n timeout = do
+barStartup n timeout args = do
     debugM "StatusBar.Bar.barStartup" $ "Enter"
     (dzenStdin, dzenProc) <- startDzen
     forkFinally (feedDzen dzenStdin) $ \_ -> do
@@ -62,25 +62,22 @@ barStartup n timeout = do
         startDzen = do
             debugM "StatusBar.Bar.startDzen" $ "Enter"
             (dzenStdin, _, _, dzenProc) <- runInteractiveProcess "dzen2"
-                [ "-p"
-                , "-h", "16"
-                , "-bg", "black"
-                , "-fg", "white"
-                , "-ta", "l"
-                ]
-                -- [ "-geometry", "+0-0"
-                -- , "-p"
-                -- , "-h", "16"
-                -- , "-bg", "black"
-                -- , "-fg", "white"
-                -- , "-ta", "l"
-                -- ]
+                (defaultDzenArgs ++ args)
                 Nothing -- Don't specify a PWD
                 Nothing -- Don't specify an environment
             debugM "StatusBar.Bar.startDzen" $ "Started dzen"
             debugM "StatusBar.Bar.startDzen" $ "    stdin: " ++ show dzenStdin
             debugM "StatusBar.Bar.startDzen" $ "Exit"
             return $ (dzenStdin, dzenProc)
+
+        defaultDzenArgs :: [String]
+        defaultDzenArgs =
+            [ "-p"
+            , "-h", "16"
+            , "-bg", "black"
+            , "-fg", "white"
+            , "-ta", "l"
+            ]
 
         -- Send status updates to dzen
         feedDzen :: Handle -> IO ()
@@ -135,7 +132,7 @@ barStartup n timeout = do
             debugM "StatusBar.Bar.processBarMessages" $ "Exit"
 
         -- Take a message and update the status bar appropriately
-        updateBar :: Message -> IO (Maybe Message)
+        updateBar :: MessageHandler
 
         updateBar (RInit name) = do
             debugM "StatusBar.Bar.updateBar" $ "Enter RInit"
@@ -190,18 +187,18 @@ barStartup n timeout = do
             debugM "StatusBar.Bar.updateBar" $ "Enter other"
             return . Just $ notImplementedMessage message
 
--- | Request handler for a status bar server that updates the status bar
-barRequestHandler :: RequestHandler
-barRequestHandler (Request client message) = do
-    debugM "StatusBar.Bar.barRequestHandler" $ "Enter"
+-- | Message handler for a status bar server that updates the status bar
+barMessageHandler :: MessageHandler
+barMessageHandler request = do
+    debugM "StatusBar.Bar.barMessageHandler" $ "Enter"
     chan <- newTChanIO
-    debugM "StatusBar.Bar.barRequestHandler" $ "Created channel"
-    atomically $ writeTChan messageChan (message, chan)
-    debugM "StatusBar.Bar.barRequestHandler" $ "Wrote into the message channel"
-    -- One <$> to lift to IO a, then another to lift to IO (Maybe a)
-    mResponse <- atomically $ (Request client <$>) <$> readTChan chan
-    debugM "StatusBar.Bar.barRequestHandler" $ "Got a response back"
-    debugM "StatusBar.Bar.barRequestHandler" $ "    mResponse: " ++ show mResponse
-    debugM "StatusBar.Bar.barRequestHandler" $ "Exit"
+    debugM "StatusBar.Bar.barMessageHandler" $ "Created channel"
+    atomically $ writeTChan messageChan (request, chan)
+    debugM "StatusBar.Bar.barMessageHandler" $ "Wrote into the message channel"
+    -- One <$> to lift to IO Message another to lift to IO (Maybe a)
+    mResponse <- atomically $ readTChan chan
+    debugM "StatusBar.Bar.barMessageHandler" $ "Got a response back"
+    debugM "StatusBar.Bar.barMessageHandler" $ "    mResponse: " ++ show mResponse
+    debugM "StatusBar.Bar.barMessageHandler" $ "Exit"
     return mResponse
 

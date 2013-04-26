@@ -17,9 +17,10 @@ cabal-version:       >=1.8
 library
   exposed-modules:
     StatusBar.Bar,
+    StatusBar.Client,
     StatusBar.Dzen,
+    StatusBar.Message,
     StatusBar.Process,
-    StatusBar.Request,
     StatusBar.Server,
     StatusBar.Timer,
     StatusBar.Widget
@@ -37,9 +38,10 @@ executable StatusBar
   ghc-options: -threaded -with-rtsopts=-N
   other-modules:
     StatusBar.Bar,
+    StatusBar.Client,
     StatusBar.Dzen,
+    StatusBar.Message,
     StatusBar.Process,
-    StatusBar.Request,
     StatusBar.Server,
     StatusBar.Timer,
     StatusBar.Widget

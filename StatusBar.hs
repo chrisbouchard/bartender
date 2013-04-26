@@ -13,9 +13,9 @@ main :: IO ()
 main = do
     logHandler <- verboseStreamHandler stderr DEBUG
     updateGlobalLogger rootLoggerName $ setLevel DEBUG . setHandlers [logHandler]
-    [hostname, port] <- getArgs
-    barStartup nMessHandlers timeout
-    serveBar (Just hostname) (Just port) nQueued barRequestHandler
+    (hostname : port : remArgs) <- getArgs
+    barStartup nMessHandlers timeout remArgs
+    serveBar (Just hostname) (Just port) nQueued barMessageHandler
     where
         nQueued = 5
         nMessHandlers = 3

@@ -12,70 +12,60 @@ import System.IO
 import System.Log.Logger
 import System.Log.Handler.Simple
 
-import StatusBar.Request
+import StatusBar.Message
 
 -- | Start a UDP server that listens for requests from clients
 serveBar :: Maybe String   -- ^ The hostname to bind
          -> Maybe String   -- ^ The port to bind
          -> Int            -- ^ The number of connections to queue
-         -> RequestHandler -- ^ A request handler
+         -> MessageHandler -- ^ A request handler
          -> IO ()
-serveBar mHostname mPort n requestHandler = withSocketsDo $ do
+serveBar mHostname mPort n messageHandler = withSocketsDo $ do
     debugM "ServerBar.Server.serveBar" $ "Enter"
-    serveraddr <- head <$> getAddrInfo
+    serverinfo <- head <$> getAddrInfo
         (Just defaultHints { addrFlags = [AI_PASSIVE] , addrSocketType = Datagram })
         mHostname mPort
-    debugM "ServerBar.Server.serveBar" $ "serveraddr: " ++ show serveraddr
+    debugM "ServerBar.Server.serveBar" $ "serverinfo: " ++ show serverinfo
 
-    sock <- socket (addrFamily serveraddr) (addrSocketType serveraddr) defaultProtocol
+    sock <- socket (addrFamily serverinfo) (addrSocketType serverinfo) defaultProtocol
     debugM "ServerBar.Server.serveBar" $ "sock: " ++ show sock
 
-    bindSocket sock (addrAddress serveraddr)
+    bind sock (addrAddress serverinfo)
     debugM "ServerBar.Server.serveBar" $ "Bound socket"
 
-    --listen sock n
-    --debugM "ServerBar.Server.serveBar" $ "Listening on socket with n = " ++ show n
-
-    procRequests serveraddr sock
+    socketLoop sock
 
     warningM "ServerBar.Server.serveBar" $ "This IO operation should not exit."
     debugM "ServerBar.Server.serveBar" $ "Exit"
     where
         bufferSize = 1024
 
-        procRequests :: AddrInfo -> Socket -> IO ()
-        procRequests serveraddr mastersock = do
-            debugM "ServerBar.Server.procRequests" $ "Enter"
+        socketLoop :: Socket -> IO ()
+        socketLoop mastersock = do
+            debugM "ServerBar.Server.SocketLoop" $ "Enter"
 
             forever $ do
                 (content, _, clientaddr) <- recvFrom mastersock bufferSize
                 let line = fst $ break (== '\n') content
-                debugM "ServerBar.Server.procRequests" $ "Received on mastersock"
-                debugM "ServerBar.Server.procRequests" $ "    content: " ++ content
-                debugM "ServerBar.Server.procRequests" $ "    line: " ++ line
-                debugM "ServerBar.Server.procRequests" $ "    clientaddr: " ++ show clientaddr
+                debugM "ServerBar.Server.socketLoop" $ "Received on mastersock"
+                debugM "ServerBar.Server.socketLoop" $ "    content: " ++ content
+                debugM "ServerBar.Server.socketLoop" $ "    line: " ++ line
+                debugM "ServerBar.Server.socketLoop" $ "    clientaddr: " ++ show clientaddr
 
                 forkIO $ procMessage mastersock clientaddr line
 
-            warningM "ServerBar.Server.procRequests" $ "This IO operation should not exit."
-            debugM "ServerBar.Server.procRequests" $ "Exit"
+            warningM "ServerBar.Server.socketLoop" $ "This IO operation should not exit."
+            debugM "ServerBar.Server.socketLoop" $ "Exit"
 
         procMessage :: Socket -> SockAddr -> String -> IO ()
         procMessage sock clientaddr content = do
             debugM "ServerBar.Server.procMessage" $ "Enter"
-            let request = parseRequestFrom clientaddr content
+            let request = parseMessage content
             debugM "ServerBar.Server.procMessage" $ "Request: " ++ show request
-            mResponse <- requestHandler request
+            mResponse <- messageHandler request
+            debugM "ServerBar.Server.procMessage" $ "Response: " ++ show mResponse
             case mResponse of
-                (Just response) -> do
-                    let (Request _ message) = response
-                    debugM "ServerBar.Server.procMessage" $ "Response: " ++ show response
-                    void $ sendTo sock (show message ++ "\n") clientaddr
-                Nothing         -> do
-                    debugM "ServerBar.Server.procMessage" $ "No response: "
-                    return ()
+                (Just response) -> void $ sendTo sock (show response ++ "\n") clientaddr
+                Nothing         -> return ()
             debugM "ServerBar.Server.procMessage" $ "Exit"
-
-        parseRequestFrom :: SockAddr -> String -> Request
-        parseRequestFrom client = Request client . parseMessage
 

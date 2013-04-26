@@ -1,4 +1,17 @@
-module StatusBar.Request where
+module StatusBar.Message
+    (
+    -- * Message Functions
+      Message(..)
+    , MessageHandler
+    , badClientMessage
+    , messageCommand
+    , notImplementedMessage
+    , parseMessage
+    -- * Utility Functions
+    , maybeRead
+    , spaced
+    , splitTokens
+    ) where
 
 import Control.Applicative
 
@@ -6,15 +19,6 @@ import Data.List
 import Data.Maybe
 
 import Network.Socket
-
--- | A request from the client or server
-data Request = Request SockAddr Message
-
-instance Show Request where
-    show (Request addr message) = "[" ++ show addr ++ "]: " ++ show message
-
--- | Handle a request, and possibly generate a response request
-type RequestHandler = Request -> IO (Maybe Request)
 
 -- | The message body of a request
 data Message = RAck Int Int Int   -- ^ Message for a client to begin sending
@@ -55,6 +59,9 @@ instance Show Message where
     show (RUpdate cid content)      = spaced ["update", show cid, content]
     show (RUnknown message)         = spaced ["[Unknown]", message]
 
+-- | Handle a request, and possibly generate a response request
+type MessageHandler = Message -> IO (Maybe Message)
+
 -- | Read a value from a string, indicating failure with Nothing
 maybeRead :: Read a => String -> Maybe a
 maybeRead = fmap fst . listToMaybe . reads
@@ -70,24 +77,21 @@ messageCommand RPoke          = "poke"
 messageCommand (RUpdate _ _)  = "update"
 messageCommand (RUnknown cmd) = cmd
 
--- | Split a string into the next token and the remainder of the string.
-nextToken :: String -> (String, String)
-nextToken str = nextToken' (lstrip str) ""
-    where
-        nextToken' ""        tok = (tok, "")
-        nextToken' (' ':str) tok = (tok, lstrip str)
-        nextToken' (ch:str)  tok = nextToken' str (tok ++ [ch])
-
-        lstrip ""        = ""
-        lstrip (' ':str) = lstrip str
-        lstrip str       = str
-
 -- | Split off the next n tokens. The resulting list will contain the tokens
 -- and the remainder of the string.
 splitTokens :: Int -> String -> [String]
 splitTokens 0 str = [str]
 splitTokens n str = tok : splitTokens (n - 1) rest
-    where (tok, rest) = nextToken str
+    where
+        (tok, rest) = nextToken (lstrip str) ""
+
+        nextToken ""        tok = (tok, "")
+        nextToken (' ':str) tok = (tok, lstrip str)
+        nextToken (ch:str)  tok = nextToken str (tok ++ [ch])
+
+        lstrip ""        = ""
+        lstrip (' ':str) = lstrip str
+        lstrip str       = str
 
 -- | Generate an error message stating that a particular command is not
 -- implemented.
@@ -102,7 +106,7 @@ badClientMessage cid = RError $ "Unkonwn client id: " ++ show cid
 parseMessage :: String -> Message
 parseMessage str = fromMaybe (RMalformed str) $ parseBody cmd body
     where
-        (cmd, body) = nextToken str
+        [cmd, body] = splitTokens 1 str
 
         parseBody :: String -> String -> Maybe Message
 
