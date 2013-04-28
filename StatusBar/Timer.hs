@@ -49,7 +49,7 @@ newTimer timeout action = do
         -- Listen for messages on the message channel from the child thread or
         -- from the outside world.
         timerLoop :: TChan TimerMessage -> IO ()
-        timerLoop chan = void $ flip runStateT Nothing $ forever $ do
+        timerLoop chan = void . flip runStateT Nothing . forever $ do
             message <- liftIO . atomically $ readTChan chan
             myTid <- liftIO $ myThreadId
             liftIO . debugM "StatusBar.Timer.timerLoop" $

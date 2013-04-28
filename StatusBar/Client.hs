@@ -2,8 +2,9 @@
 module StatusBar.Client
     ( BarClient
     , connectClient
-    , sendAlive
-    , sendUpdate
+    , runClient
+    , touchClient
+    , updateClient
     ) where
 
 import Control.Applicative
@@ -28,17 +29,26 @@ data BarServerInfo = BarServerInfo
     , serverVersion :: Int
     }
 
-data BarClientInfo = BarClientInfo String (Maybe BarServerInfo)
+data BarClientInfo = BarClientInfo
+    { clientName   :: String
+    , clientServer :: Maybe BarServerInfo
+    }
 
 type BarClient a = StateT BarClientInfo IO a
+
+runClient :: BarClient a
+          -> String
+          -> IO a
+runClient client name = evalStateT client (BarClientInfo name Nothing)
 
 -- | Connect a client to a status bar server
 connectClient :: String -- ^ The hostname to bind
               -> String -- ^ The port to bind
-              -> String -- ^ The client's name
               -> BarClient ()
-connectClient hostname port name = do
-    clientInfo <- liftIO . withSocketsDo $ do
+connectClient hostname port = do
+    (BarClientInfo name _) <- get
+
+    serverInfo <- liftIO . withSocketsDo $ do
         debugM "ServerBar.Client.connectBar" $ "Enter"
         serverinfo <- head <$> getAddrInfo
             (Just defaultHints { addrFlags = [AI_PASSIVE] , addrSocketType = Datagram })
@@ -56,9 +66,9 @@ connectClient hostname port name = do
         send sock . show $ RInit name
         message <- parseMessage <$> recv sock bufferSize
         debugM "ServerBar.Client.connectBar" $ "Received from server: " ++ (show message)
-        BarClientInfo name <$> handleAck sock message
+        handleAck sock message
 
-    put clientInfo
+    put $ BarClientInfo name serverInfo
 
     where
         bufferSize = 1024
@@ -79,8 +89,8 @@ connectClient hostname port name = do
             return Nothing
 
 -- | Send an alive message to the server
-sendAlive :: BarClient ()
-sendAlive = do
+touchClient :: BarClient ()
+touchClient = do
     (BarClientInfo name mServerInfo) <- get
     liftIO $ case mServerInfo of
         Nothing -> do
@@ -90,9 +100,9 @@ sendAlive = do
             void $ send (serverSock serverInfo) . show $ RAlive (serverCid serverInfo)
 
 -- | Send an update to the server
-sendUpdate :: String -- ^ The content of the update
-           -> BarClient ()
-sendUpdate content = do
+updateClient :: String -- ^ The content of the update
+             -> BarClient ()
+updateClient content = do
     (BarClientInfo name mServerInfo) <- get
     liftIO $ case mServerInfo of
         Nothing -> do
