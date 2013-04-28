@@ -29,8 +29,10 @@ library
     hslogger ==1.2.*,
     mtl ==2.1.*,
     network ==2.4.*,
+    old-locale ==1.0.*,
     process ==1.1.*,
     stm ==2.4.*,
+    time ==1.4.*,
     transformers ==0.3.*
 
 executable StatusBar
@@ -50,6 +52,31 @@ executable StatusBar
     hslogger ==1.2.*,
     mtl ==2.1.*,
     network ==2.4.*,
+    old-locale ==1.0.*,
     process ==1.1.*,
     stm ==2.4.*,
+    time ==1.4.*,
+    transformers ==0.3.*
+
+executable TestClient
+  main-is: TestClient.hs
+  ghc-options: -threaded -with-rtsopts=-N
+  other-modules:
+    StatusBar.Bar,
+    StatusBar.Client,
+    StatusBar.Dzen,
+    StatusBar.Message,
+    StatusBar.Process,
+    StatusBar.Server,
+    StatusBar.Timer,
+    StatusBar.Widget
+  build-depends:
+    base ==4.6.*,
+    hslogger ==1.2.*,
+    mtl ==2.1.*,
+    network ==2.4.*,
+    old-locale ==1.0.*,
+    process ==1.1.*,
+    stm ==2.4.*,
+    time ==1.4.*,
     transformers ==0.3.*

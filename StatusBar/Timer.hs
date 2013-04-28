@@ -5,11 +5,13 @@ module StatusBar.Timer
     , restartTimer
     , startTimer
     , stopTimer
+    , runOnTimer
     ) where
 
 import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.STM.TChan
+import Control.Concurrent.STM.TMVar
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.State
@@ -33,7 +35,7 @@ data TimerMessage = TChild ThreadId
 type TimerStateT a = StateT (Maybe ThreadId) IO a
 
 -- | Create a new timer in a stopped state.
-newTimer :: Int      -- ^ The timeout
+newTimer :: Int      -- ^ The timeout in seconds
          -> IO Bool  -- ^ The action to perform. The return value indicates
                      -- whether the timer should continue or stop.
          -> IO Timer
@@ -126,4 +128,42 @@ startTimer (Timer chan) = atomically $ writeTChan chan TStart
 -- | Stop the timer if it is running. Stopping a stopped timer is a no-op.
 stopTimer :: Timer -> IO ()
 stopTimer (Timer chan) = atomically $ writeTChan chan TStop
+
+-- | Continually wait for a timer to fire, then run an action. The result is
+-- a bool that indicates whether the loop should continue.
+runOnTimer :: MonadIO m
+           => Int    -- ^ The timeout in seconds
+           -> m Bool -- ^ The action to run
+           -> m ()
+runOnTimer timeout action = do
+    -- This variable is used as a semiphore; when the loop can take a value
+    -- out, the action is run
+    updateVar <- liftIO newEmptyTMVarIO
+
+    timer <- liftIO . newTimer timeout $ unlock updateVar >> return True
+    liftIO $ startTimer timer
+
+    doWhile id $ do
+        liftIO $ lock updateVar
+        action
+
+    liftIO $ stopTimer timer
+    where
+        -- Unlock a semaphore
+        unlock :: TMVar () -> IO ()
+        unlock var = atomically $ putTMVar var ()
+
+        -- Lock a semaphore
+        lock :: TMVar () -> IO ()
+        lock var = atomically $ takeTMVar var
+
+        -- Run a monad, each time testing its return value to decide if we
+        -- should continue
+        -- TODO: Move this into a more promanent package
+        doWhile :: Monad m => (a -> Bool) -> m a -> m a
+        doWhile cond body = do
+            x <- body
+            if cond x
+                then doWhile cond body
+                else return x
 

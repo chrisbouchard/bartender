@@ -36,10 +36,10 @@ data BarClientInfo = BarClientInfo
 
 type BarClient a = StateT BarClientInfo IO a
 
-runClient :: BarClient a
-          -> String
+runClient :: String
+          -> BarClient a
           -> IO a
-runClient client name = evalStateT client (BarClientInfo name Nothing)
+runClient name client = evalStateT client (BarClientInfo name Nothing)
 
 -- | Connect a client to a status bar server
 connectClient :: String -- ^ The hostname to bind
