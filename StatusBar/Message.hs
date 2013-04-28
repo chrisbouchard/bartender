@@ -1,24 +1,20 @@
 module StatusBar.Message
-    (
-    -- * Message Functions
-      Message(..)
+    ( Message(..)
     , MessageHandler
     , badClientMessage
     , messageCommand
     , notImplementedMessage
     , parseMessage
-    -- * Utility Functions
-    , maybeRead
-    , spaced
     , splitTokens
     ) where
 
 import Control.Applicative
 
-import Data.List
 import Data.Maybe
 
 import Network.Socket
+
+import StatusBar.Util
 
 -- | The message body of a request
 data Message = RAck Int Int Int   -- ^ Message for a client to begin sending
@@ -61,10 +57,6 @@ instance Show Message where
 
 -- | Handle a request, and possibly generate a response request
 type MessageHandler = Message -> IO (Maybe Message)
-
--- | Read a value from a string, indicating failure with Nothing
-maybeRead :: Read a => String -> Maybe a
-maybeRead = fmap fst . listToMaybe . reads
 
 -- | Get the command from a message
 messageCommand :: Message -> String
@@ -134,8 +126,4 @@ parseMessage str = fromMaybe (RMalformed str) $ parseBody cmd body
         parseBody "" body = Nothing
 
         parseBody cmd body = Just $ RUnknown cmd
-
--- | Join a list of strings by spaces
-spaced :: [String] -> String
-spaced = intercalate " "
 

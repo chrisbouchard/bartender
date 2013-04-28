@@ -22,6 +22,8 @@ import Data.Maybe
 import System.Log.Logger
 import System.Log.Handler.Simple
 
+import StatusBar.Util
+
 -- | A timer that asynchronously runs an action every so often.
 data Timer = Timer (TChan TimerMessage)
 
@@ -156,14 +158,4 @@ runOnTimer timeout action = do
         -- Lock a semaphore
         lock :: TMVar () -> IO ()
         lock var = atomically $ takeTMVar var
-
-        -- Run a monad, each time testing its return value to decide if we
-        -- should continue
-        -- TODO: Move this into a more promanent package
-        doWhile :: Monad m => (a -> Bool) -> m a -> m a
-        doWhile cond body = do
-            x <- body
-            if cond x
-                then doWhile cond body
-                else return x
 
