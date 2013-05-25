@@ -1,10 +1,10 @@
 Introduction
 ------------
 
-Status-Bar-Server is exactly what it sounds like: a server built around the
-dzen2 statusbar. Client programs connect to the server and publish widgets.
+Bartender is a statusbar server written in Haskell and built around the dzen2
+statusbar. Client programs connect to the server and publish widgets.
 
-Satus-Bar-Server is built around a very simple protocol. Clients announce
+Bartender is built around a very lightweight protocol. Clients announce
 themselves to the server, and then proceed to send periodic updates which are
 displayed on the bar by the server. Clients are dropped after a specified
 timeout if no updates are received.
@@ -12,8 +12,8 @@ timeout if no updates are received.
 Installation
 ------------
 
-Status-Bar-Server uses `cabal` to build and install itself, so installation
-should be as simple as running
+Bartender uses `cabal` to build and install itself, so installation should be
+as simple as running
 
     cabal build
 
@@ -30,20 +30,18 @@ to generate HTML documentation of the StatusBar library.
 Running
 -------
 
-To run the Status-Bar-Server, run the `StatusBar` executable. For a list of
-optional arguments and flags, run
-
-    StatusBar --help
+To run bartender, run the `bartender` executable. For a list of optional
+arguments and flags, run `bartender --help`.
 
 Writing a Client
 ----------------
 
 Two sample clients are included: `TestClient.hs` and `WatchClient.hs`. The
-first is a simple client that display the current date and time. The second is
+first is a basic client that displays the current date and time. The second is
 a useful client that watches the output of a command and displays that output,
 much like the `watch` command in the Unix shell.
 
-A client simply runs a `BarClient` monad, which handles connecting to the
+A client program runs a `BarClient` monad, which handles connecting to the
 server and encapsulates the protocol.
 
 Dependencies
