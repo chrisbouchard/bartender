@@ -14,8 +14,7 @@ import StatusBar.Server
 import StatusBar.Bar
 
 data Options = Options
-    { dzen     :: [String]
-    , handlers :: Int
+    { handlers :: Int
     , host     :: String
     , port     :: String
     , queue    :: Int
@@ -25,9 +24,7 @@ data Options = Options
 
 options :: Options
 options = Options
-    { dzen = []
-        &= help "Pass arguments to the dzen bar"
-    , handlers = 3
+    { handlers = 3
         &= help "The number of message handlers for the bar"
     , host = def &= argPos 0 &= opt "localhost"
     , port = "9999"
@@ -49,10 +46,10 @@ main = do
     debugM "Main.main" $ "Enter"
 
     options <- cmdArgs options
-    debugM "Main.main" $ "dzen options: " ++ show (dzen options)
+    debugM "Main.main" $ "Options: " ++ show options
 
     -- TODO: Use the dzen arguments here
-    barStartup (handlers options) (timeout options) []
+    barStartup (handlers options) (timeout options)
     serveBar (Just $ host options) (Just $ port options) (queue options) barMessageHandler
 
     debugM "Main.main" $ "Exit"

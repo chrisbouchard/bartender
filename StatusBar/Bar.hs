@@ -41,56 +41,27 @@ protocolVersion = 1
 -- | Start and initialize the status bar
 barStartup :: Int      -- ^ The number of message handlers to fork
            -> Int      -- ^ The timeout for widget timers
-           -> [String] -- ^ The arguments for Dzen
            -> IO ()
-barStartup n timeout args = do
+barStartup n timeout = do
     debugM "StatusBar.Bar.barStartup" $ "Enter"
-    (dzenStdin, dzenProc) <- startDzen
-    forkFinally (feedDzen dzenStdin) $ \_ -> do
-        debugM "StatusBar.Bar.barStartup" $ "Child thread has exited"
-        debugM "StatusBar.Bar.barStartup" $ "Closing dzen stdin: " ++ show dzenStdin
-        hClose dzenStdin
-        debugM "StatusBar.Bar.barStartup" $ "Terminating dzen process"
-        terminateProcess dzenProc
+    forkIO $ feedBar stdout
     newTimer cleanupDelay cleanupTimerAction >>= startTimer
     replicateM_ n . forkIO $ processBarMessages
     debugM "StatusBar.Bar.barStartup" $ "Started " ++ show n ++ " message processors."
     debugM "StatusBar.Bar.barStartup" $ "Exit"
     where
-        -- Start the dzen process and grab its standard input
-        startDzen :: IO (Handle, ProcessHandle)
-        startDzen = do
-            debugM "StatusBar.Bar.startDzen" $ "Enter"
-            (dzenStdin, _, _, dzenProc) <- runInteractiveProcess "dzen2"
-                (defaultDzenArgs ++ args)
-                Nothing -- Don't specify a PWD
-                Nothing -- Don't specify an environment
-            debugM "StatusBar.Bar.startDzen" $ "Started dzen"
-            debugM "StatusBar.Bar.startDzen" $ "    stdin: " ++ show dzenStdin
-            debugM "StatusBar.Bar.startDzen" $ "Exit"
-            return $ (dzenStdin, dzenProc)
-
-        defaultDzenArgs :: [String]
-        defaultDzenArgs =
-            [ "-p"
-            , "-h", "16"
-            , "-bg", "black"
-            , "-fg", "white"
-            , "-ta", "l"
-            ]
-
-        -- Send status updates to dzen
-        feedDzen :: Handle -> IO ()
-        feedDzen dzenStdin = forever $ do
+        -- Send status updates to the bar
+        feedBar :: Handle -> IO ()
+        feedBar handle = forever $ do
             status <- atomically $ do
                 widgetList <- readTMVar widgetListVar
                 msum $ map (takeTMVar . wLock) widgetList
                 getStatus
-            debugM "StatusBar.Bar.feedDzen" $ "Read a new status line"
-            debugM "StatusBar.Bar.feedDzen" $ "    status: " ++ status
-            hPutStrLn dzenStdin status
-            hFlush dzenStdin
-            debugM "StatusBar.Bar.feedDzen" $ "Wrote status"
+            debugM "StatusBar.Bar.feedBar" $ "Read a new status line"
+            debugM "StatusBar.Bar.feedBar" $ "    status: " ++ status
+            hPutStrLn handle status
+            hFlush handle
+            debugM "StatusBar.Bar.feedBar" $ "Wrote status"
 
         cleanupDelay :: Int
         cleanupDelay = 60
