@@ -53,7 +53,7 @@ server and encapsulates the protocol.
 Dependencies
 ------------
 
-The following Haskell packages are needed to build Status-Bar-Server:
+The following cabal packages are needed to build Status-Bar-Server:
 
 * base
 * cmdargs
