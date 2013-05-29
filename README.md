@@ -53,7 +53,7 @@ server and encapsulates the protocol.
 Dependencies
 ------------
 
-The following cabal packages are needed to build Status-Bar-Server:
+The following cabal packages are needed to build bartender:
 
 * base
 * cmdargs
@@ -67,4 +67,20 @@ The following cabal packages are needed to build Status-Bar-Server:
 * transformers
 
 They should be downloaded as needed by the build system.
+
+Future Work
+-----------
+
+Bartender is still very alpha code. Right now it's completely dependent on
+dzen, but the eventual goal is to be status-bar agnostic. Different status-bars
+will be handled by plugins.
+
+Another plan is an extended protocol with support for user interaction, such as
+mouse clicks. This will probably require the client to register with the server
+so events can be sent. This could also allow the server to notify clients when
+they are about to be dropped.
+
+This was my first Haskell project of any significant scope. I'm sure a lot of
+the code needs to be cleaned up, and hopefully some of it can be generalized
+and replaced with existing library functions.
 
