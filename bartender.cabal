@@ -12,11 +12,13 @@ build-type:          Simple
 cabal-version:       >=1.8
 
 library
+  extensions: MultiParamTypeClasses
   exposed-modules:
     StatusBar.Bar,
     StatusBar.Client,
     StatusBar.Dzen,
     StatusBar.Message,
+    StatusBar.Options,
     StatusBar.Process,
     StatusBar.Server,
     StatusBar.Timer,
@@ -24,6 +26,8 @@ library
     StatusBar.Widget
   build-depends:
     base ==4.6.*,
+    ConfigFile ==1.1.*,
+    containers ==0.5.*,
     hslogger ==1.2.*,
     mtl ==2.1.*,
     network ==2.4.*,
