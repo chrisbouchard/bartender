@@ -86,6 +86,31 @@ executable TestClient
     time ==1.4.*,
     transformers ==0.3.*
 
+executable FileClient
+  main-is: FileClient.hs
+  ghc-options: -threaded -with-rtsopts=-N
+  other-modules:
+    StatusBar.Bar,
+    StatusBar.Client,
+    StatusBar.Dzen,
+    StatusBar.Message,
+    StatusBar.Process,
+    StatusBar.Server,
+    StatusBar.Timer,
+    StatusBar.Util,
+    StatusBar.Widget
+  build-depends:
+    base ==4.6.*,
+    cmdargs ==0.10.*,
+    hslogger ==1.2.*,
+    mtl ==2.1.*,
+    network ==2.4.*,
+    old-locale ==1.0.*,
+    process ==1.1.*,
+    stm ==2.4.*,
+    time ==1.4.*,
+    transformers ==0.3.*
+
 executable WatchClient
   main-is: WatchClient.hs
   ghc-options: -threaded -with-rtsopts=-N
@@ -110,3 +135,4 @@ executable WatchClient
     stm ==2.4.*,
     time ==1.4.*,
     transformers ==0.3.*
+
