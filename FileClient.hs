@@ -45,11 +45,6 @@ options = Options
     &= summary "FileClient v0.1.0"
     &= help "Read lines from a file and send them to a StatusBar server."
 
-openInputHandle :: String -> IO Handle
-openInputHandle path = if path == "-"
-    then return stdin
-    else openFile path ReadMode
-
 main :: IO ()
 main = do
     -- Set up logging
@@ -72,4 +67,9 @@ main = do
             liftIO $ hIsEOF handle
 
     debugM "Main.main" $ "Exit"
+    where
+        openInputHandle :: String -> IO Handle
+        openInputHandle path = if path == "-"
+            then return stdin
+            else openFile path ReadMode
 
