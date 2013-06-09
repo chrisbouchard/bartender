@@ -34,17 +34,19 @@ data BarClientInfo = BarClientInfo
     , clientServer :: Maybe BarServerInfo
     }
 
-type BarClient a = StateT BarClientInfo IO a
+type BarClient m a = StateT BarClientInfo m a
 
-runClient :: String
-          -> BarClient a
-          -> IO a
+runClient :: MonadIO m
+          => String        -- ^ The name of the client
+          -> BarClient m a -- ^ The bar client monad to run
+          -> m a
 runClient name client = evalStateT client (BarClientInfo name Nothing)
 
 -- | Connect a client to a status bar server
-connectClient :: String -- ^ The hostname to bind
-              -> String -- ^ The port to bind
-              -> BarClient ()
+connectClient :: MonadIO m
+              => String    -- ^ The hostname to bind
+              -> String    -- ^ The port to bind
+              -> BarClient m ()
 connectClient hostname port = do
     (BarClientInfo name _) <- get
 
@@ -89,7 +91,8 @@ connectClient hostname port = do
             return Nothing
 
 -- | Send an alive message to the server
-touchClient :: BarClient ()
+touchClient :: MonadIO m
+            => BarClient m ()
 touchClient = do
     (BarClientInfo name mServerInfo) <- get
     liftIO $ case mServerInfo of
@@ -100,8 +103,9 @@ touchClient = do
             void $ send (serverSock serverInfo) . show $ RAlive (serverCid serverInfo)
 
 -- | Send an update to the server
-updateClient :: String -- ^ The content of the update
-             -> BarClient ()
+updateClient :: MonadIO m
+             => String    -- ^ The content of the update
+             -> BarClient m ()
 updateClient content = do
     (BarClientInfo name mServerInfo) <- get
     liftIO $ case mServerInfo of
