@@ -10,8 +10,8 @@ import System.IO
 import System.Log.Logger
 import System.Log.Handler.Simple
 
-import StatusBar.Server
-import StatusBar.Bar
+import BarTender.Server
+import BarTender.Bar
 
 data Options = Options
     { handlers :: Int

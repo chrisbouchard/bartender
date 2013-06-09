@@ -13,16 +13,16 @@ cabal-version:       >=1.8
 
 library
   exposed-modules:
-    StatusBar.Bar,
-    StatusBar.Client,
-    StatusBar.Dzen,
-    StatusBar.Message,
-    StatusBar.Options,
-    StatusBar.Process,
-    StatusBar.Server,
-    StatusBar.Timer,
-    StatusBar.Util,
-    StatusBar.Widget
+    BarTender.Bar,
+    BarTender.Client,
+    BarTender.Dzen,
+    BarTender.Message,
+    BarTender.Options,
+    BarTender.Process,
+    BarTender.Server,
+    BarTender.Timer,
+    BarTender.Util,
+    BarTender.Widget
   build-depends:
     base ==4.6.*,
     ConfigFile ==1.1.*,
@@ -40,15 +40,15 @@ executable bartender
   main-is: bartender.hs
   ghc-options: -threaded -with-rtsopts=-N
   other-modules:
-    StatusBar.Bar,
-    StatusBar.Client,
-    StatusBar.Dzen,
-    StatusBar.Message,
-    StatusBar.Process,
-    StatusBar.Server,
-    StatusBar.Timer,
-    StatusBar.Util,
-    StatusBar.Widget
+    BarTender.Bar,
+    BarTender.Client,
+    BarTender.Dzen,
+    BarTender.Message,
+    BarTender.Process,
+    BarTender.Server,
+    BarTender.Timer,
+    BarTender.Util,
+    BarTender.Widget
   build-depends:
     base ==4.6.*,
     cmdargs ==0.10.*,
@@ -65,15 +65,15 @@ executable TestClient
   main-is: TestClient.hs
   ghc-options: -threaded -with-rtsopts=-N
   other-modules:
-    StatusBar.Bar,
-    StatusBar.Client,
-    StatusBar.Dzen,
-    StatusBar.Message,
-    StatusBar.Process,
-    StatusBar.Server,
-    StatusBar.Timer,
-    StatusBar.Util,
-    StatusBar.Widget
+    BarTender.Bar,
+    BarTender.Client,
+    BarTender.Dzen,
+    BarTender.Message,
+    BarTender.Process,
+    BarTender.Server,
+    BarTender.Timer,
+    BarTender.Util,
+    BarTender.Widget
   build-depends:
     base ==4.6.*,
     cmdargs ==0.10.*,
@@ -90,15 +90,15 @@ executable FileClient
   main-is: FileClient.hs
   ghc-options: -threaded -with-rtsopts=-N
   other-modules:
-    StatusBar.Bar,
-    StatusBar.Client,
-    StatusBar.Dzen,
-    StatusBar.Message,
-    StatusBar.Process,
-    StatusBar.Server,
-    StatusBar.Timer,
-    StatusBar.Util,
-    StatusBar.Widget
+    BarTender.Bar,
+    BarTender.Client,
+    BarTender.Dzen,
+    BarTender.Message,
+    BarTender.Process,
+    BarTender.Server,
+    BarTender.Timer,
+    BarTender.Util,
+    BarTender.Widget
   build-depends:
     base ==4.6.*,
     cmdargs ==0.10.*,
@@ -115,15 +115,15 @@ executable WatchClient
   main-is: WatchClient.hs
   ghc-options: -threaded -with-rtsopts=-N
   other-modules:
-    StatusBar.Bar,
-    StatusBar.Client,
-    StatusBar.Dzen,
-    StatusBar.Message,
-    StatusBar.Process,
-    StatusBar.Server,
-    StatusBar.Timer,
-    StatusBar.Util,
-    StatusBar.Widget
+    BarTender.Bar,
+    BarTender.Client,
+    BarTender.Dzen,
+    BarTender.Message,
+    BarTender.Process,
+    BarTender.Server,
+    BarTender.Timer,
+    BarTender.Util,
+    BarTender.Widget
   build-depends:
     base ==4.6.*,
     cmdargs ==0.10.*,

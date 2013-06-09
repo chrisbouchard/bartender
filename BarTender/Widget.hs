@@ -1,4 +1,4 @@
-module StatusBar.Widget
+module BarTender.Widget
     ( Widget, wName, wId, wLock
     , LockVar
     , newWidget
@@ -20,8 +20,8 @@ import System.IO.Unsafe
 import System.Log.Logger
 import System.Log.Handler.Simple
 
-import StatusBar.Dzen
-import StatusBar.Timer
+import BarTender.Dzen
+import BarTender.Timer
 
 -- | A lock on the widget. When a widget is updated, it will be unlocked. Once
 -- the widget is displayed it should be relocked.

@@ -1,5 +1,5 @@
 -- | A client for the status bar server
-module StatusBar.Client
+module BarTender.Client
     ( BarClient
     , connectClient
     , runClient
@@ -20,7 +20,7 @@ import System.IO
 import System.Log.Logger
 import System.Log.Handler.Simple
 
-import StatusBar.Message
+import BarTender.Message
 
 data BarServerInfo = BarServerInfo
     { serverSock    :: Socket

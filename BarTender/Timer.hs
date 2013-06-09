@@ -1,4 +1,4 @@
-module StatusBar.Timer
+module BarTender.Timer
     ( Timer
     , newTimer
     , killTimer
@@ -22,7 +22,7 @@ import Data.Maybe
 import System.Log.Logger
 import System.Log.Handler.Simple
 
-import StatusBar.Util
+import BarTender.Util
 
 -- | A timer that asynchronously runs an action every so often.
 data Timer = Timer (TChan TimerMessage)

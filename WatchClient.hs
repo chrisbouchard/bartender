@@ -20,9 +20,9 @@ import System.Log.Logger
 import System.Log.Handler.Simple
 import System.Process
 
-import StatusBar.Client
-import StatusBar.Dzen
-import StatusBar.Timer
+import BarTender.Client
+import BarTender.Dzen
+import BarTender.Timer
 
 -- Options to this program, gotten from the command line, a config file, or
 -- something like that

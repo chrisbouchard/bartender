@@ -1,5 +1,5 @@
 -- | A server to listen for and handle requests to update the status bar
-module StatusBar.Server where
+module BarTender.Server where
 
 import Control.Applicative
 import Control.Concurrent
@@ -12,7 +12,7 @@ import System.IO
 import System.Log.Logger
 import System.Log.Handler.Simple
 
-import StatusBar.Message
+import BarTender.Message
 
 -- | Start a UDP server that listens for requests from clients
 serveBar :: Maybe String   -- ^ The hostname to bind

@@ -1,4 +1,4 @@
-module StatusBar.Util where
+module BarTender.Util where
 
 import Control.Applicative
 import Control.Monad

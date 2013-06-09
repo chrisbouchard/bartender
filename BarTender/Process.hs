@@ -1,4 +1,4 @@
-module StatusBar.Process
+module BarTender.Process
     ( forkChild
     , forkChildFinally
     , killChildren

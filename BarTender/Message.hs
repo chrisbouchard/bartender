@@ -1,4 +1,4 @@
-module StatusBar.Message
+module BarTender.Message
     ( Message(..)
     , MessageHandler
     , badClientMessage
@@ -14,7 +14,7 @@ import Data.Maybe
 
 import Network.Socket
 
-import StatusBar.Util
+import BarTender.Util
 
 -- | The message body of a request
 data Message = RAck Int Int Int   -- ^ Message for a client to begin sending

@@ -1,4 +1,4 @@
-module StatusBar.Bar
+module BarTender.Bar
     ( barStartup
     , barMessageHandler
     , protocolVersion
@@ -22,10 +22,10 @@ import System.Log.Logger
 import System.Log.Handler.Simple
 import System.Process
 
-import StatusBar.Dzen
-import StatusBar.Message
-import StatusBar.Timer
-import StatusBar.Widget
+import BarTender.Dzen
+import BarTender.Message
+import BarTender.Timer
+import BarTender.Widget
 
 -- The channel to send messages to message-processors
 messageChan :: TChan (Message, TChan (Maybe Message))

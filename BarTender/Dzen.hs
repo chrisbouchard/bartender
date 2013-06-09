@@ -1,4 +1,4 @@
-module StatusBar.Dzen where
+module BarTender.Dzen where
 
 -- | The color of a disabled panel in the status bar
 disabledColor :: String
