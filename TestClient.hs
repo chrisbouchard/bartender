@@ -26,20 +26,26 @@ import BarTender.Timer
 -- Options to this program, gotten from the command line, a config file, or
 -- something like that
 data Options = Options
-    { host  :: String -- The server host
-    , port  :: String -- The server port
-    , name_ :: String -- The client name
+    { host    :: String -- The server host
+    , port    :: Int    -- The server port
+    , name_   :: String -- The client name
+    , retries :: Int    -- The number of times to retry connecting
+    , timeout :: Int    -- The number of seconds to wait for server response
     }
     deriving (Show, Data, Typeable)
 
 -- Set default options and annotations
 options :: Options
 options = Options
-    { host = def &= argPos 0 &= opt "localhost"
-    , port = "9999"
+    { port = 9999
         &= help "The server port"
     , name_ = "Test"
         &= help "Specify a client name"
+    , retries = 0
+        &= help "Number of times to retry connecting"
+    , timeout = 30
+        &= help "Number of seconds to wait for server response"
+    , host = def &= argPos 0 &= opt "localhost"
     }
     &= program "TestClient"
     &= summary "TestClient v0.1.0"
@@ -56,16 +62,24 @@ main = do
     options <- cmdArgs options
 
     runClient (name_ options) $ do
-        connectClient (host options) (port options)
-        runOnTimer timeout $ do
+        connectClient $ connectionOptions options
+        runOnTimer delay $ do
             liftIO getTime >>= updateClient
             return True
 
     debugM "Main.main" $ "Exit"
 
     where
-        timeout = 1
+        delay = 1
 
         getTime :: IO String
         getTime = formatTime defaultTimeLocale "%a %d %b %Y %R %Z" <$> getZonedTime
+
+        connectionOptions :: Options -> ConnectionOptions
+        connectionOptions options = ConnectionOptions
+            { connectHost    = host options
+            , connectPort    = show $ port options
+            , connectRetries = retries options
+            , connectTimeout = timeout options
+            }
 

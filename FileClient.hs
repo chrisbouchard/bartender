@@ -24,10 +24,12 @@ import BarTender.Util
 -- Options to this program, gotten from the command line, a config file, or
 -- something like that
 data Options = Options
-    { host  :: String -- The server host
-    , name_ :: String -- The client name
-    , port  :: Int    -- The server port
-    , path  :: String -- The command to run
+    { host    :: String -- The server host
+    , name_   :: String -- The client name
+    , port    :: Int    -- The server port
+    , retries :: Int    -- The number of times to retry connecting
+    , timeout :: Int    -- The number of seconds to wait for server response
+    , path    :: String -- The command to run
     }
     deriving (Show, Data, Typeable)
 
@@ -38,6 +40,10 @@ options = Options
         &= help "Specify a client name"
     , port = 9999
         &= help "The server port"
+    , retries = 0
+        &= help "Number of times to retry connecting"
+    , timeout = 30
+        &= help "Number of seconds to wait for server response"
     , host = def &= argPos 0
     , path = def &= opt "-" &= argPos 1
     }
@@ -61,7 +67,7 @@ main = do
     hSetBuffering handle LineBuffering
 
     runClient (name_ options) $ do
-        connectClient (host options) (show $ port options)
+        connectClient $ connectionOptions options
         doWhile not $ do
             liftIO (hGetLine handle) >>= updateClient
             liftIO $ hIsEOF handle
@@ -72,4 +78,12 @@ main = do
         openInputHandle path = if path == "-"
             then return stdin
             else openFile path ReadMode
+
+        connectionOptions :: Options -> ConnectionOptions
+        connectionOptions options = ConnectionOptions
+            { connectHost    = host options
+            , connectPort    = show $ port options
+            , connectRetries = retries options
+            , connectTimeout = timeout options
+            }
 

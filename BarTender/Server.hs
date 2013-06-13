@@ -1,5 +1,9 @@
 -- | A server to listen for and handle requests to update the status bar
-module BarTender.Server where
+module BarTender.Server
+    ( ServerOptions(..)
+    , defaultServerOptions
+    , serveBar
+    ) where
 
 import Control.Applicative
 import Control.Concurrent
@@ -14,17 +18,33 @@ import System.Log.Handler.Simple
 
 import BarTender.Message
 
+-- | Options for a bartender server
+data ServerOptions = ServerOptions
+    { serverHost       :: String -- ^ The hostname to bind the server to
+    , serverPort       :: String -- ^ The port to bind the server on
+    , serverBufferSize :: Int    -- ^ The size of the buffer for incoming packets
+    }
+    deriving (Eq, Show)
+
+-- | The default options for a server. Users should override fields as needed.
+defaultServerOptions :: ServerOptions
+defaultServerOptions = ServerOptions
+    { serverHost       = "localhost"
+    , serverPort       = "9999"
+    , serverBufferSize = 1024
+    }
+
 -- | Start a UDP server that listens for requests from clients
-serveBar :: Maybe String   -- ^ The hostname to bind
-         -> Maybe String   -- ^ The port to bind
-         -> Int            -- ^ The number of connections to queue
+serveBar :: ServerOptions  -- ^ Options for the server
          -> MessageHandler -- ^ A request handler
          -> IO ()
-serveBar mHostname mPort n messageHandler = withSocketsDo $ do
+serveBar options messageHandler = withSocketsDo $ do
     debugM "ServerBar.Server.serveBar" $ "Enter"
+    debugM "ServerBar.Server.serveBar" $ "ServerOptions: " ++ show options
+
     serverinfo <- head <$> getAddrInfo
         (Just defaultHints { addrFlags = [AI_PASSIVE] , addrSocketType = Datagram })
-        mHostname mPort
+        (Just $ serverHost options) (Just $ serverPort options)
     debugM "ServerBar.Server.serveBar" $ "serverinfo: " ++ show serverinfo
 
     sock <- socket (addrFamily serverinfo) (addrSocketType serverinfo) defaultProtocol
@@ -38,14 +58,12 @@ serveBar mHostname mPort n messageHandler = withSocketsDo $ do
     warningM "ServerBar.Server.serveBar" $ "This IO operation should not exit."
     debugM "ServerBar.Server.serveBar" $ "Exit"
     where
-        bufferSize = 1024
-
         socketLoop :: Socket -> IO ()
         socketLoop mastersock = do
             debugM "ServerBar.Server.SocketLoop" $ "Enter"
 
             forever $ do
-                (content, _, clientaddr) <- recvFrom mastersock bufferSize
+                (content, _, clientaddr) <- recvFrom mastersock $ serverBufferSize options
                 let line = fst $ break (== '\n') content
                 debugM "ServerBar.Server.socketLoop" $ "Received on mastersock"
                 debugM "ServerBar.Server.socketLoop" $ "    content: " ++ content

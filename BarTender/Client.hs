@@ -1,6 +1,8 @@
 -- | A client for the status bar server
 module BarTender.Client
     ( BarClient
+    , ConnectionOptions(..)
+    , defaultConnectionOptions
     , connectClient
     , runClient
     , touchClient
@@ -28,33 +30,53 @@ data BarServerInfo = BarServerInfo
     , serverTimeout :: Int
     , serverVersion :: Int
     }
+    deriving Show
 
 data BarClientInfo = BarClientInfo
-    { clientName   :: String
-    , clientServer :: Maybe BarServerInfo
+    { clientName       :: String
+    , clientServer     :: Maybe BarServerInfo
+    , clientConnection :: Maybe ConnectionOptions
     }
+    deriving Show
 
 type BarClient m a = StateT BarClientInfo m a
 
+data ConnectionOptions = ConnectionOptions
+    { connectHost    :: String
+    , connectPort    :: String
+    , connectRetries :: Int
+    , connectTimeout :: Int
+    }
+    deriving Show
+
+-- | Default options for connecting to a server
+defaultConnectionOptions :: ConnectionOptions
+defaultConnectionOptions = ConnectionOptions
+    { connectHost    = "localhost"
+    , connectPort    = "9999"
+    , connectRetries = 0
+    , connectTimeout = 60
+    }
+
+-- | Run a client monad
 runClient :: MonadIO m
           => String        -- ^ The name of the client
           -> BarClient m a -- ^ The bar client monad to run
           -> m a
-runClient name client = evalStateT client (BarClientInfo name Nothing)
+runClient name client = evalStateT client (BarClientInfo name Nothing Nothing)
 
 -- | Connect a client to a status bar server
 connectClient :: MonadIO m
-              => String    -- ^ The hostname to bind
-              -> String    -- ^ The port to bind
+              => ConnectionOptions
               -> BarClient m ()
-connectClient hostname port = do
-    (BarClientInfo name _) <- get
+connectClient options = do
+    BarClientInfo { clientName = name } <- get
 
-    serverInfo <- liftIO . withSocketsDo $ do
+    mServerInfo <- liftIO . withSocketsDo $ do
         debugM "ServerBar.Client.connectBar" $ "Enter"
         serverinfo <- head <$> getAddrInfo
             (Just defaultHints { addrFlags = [AI_PASSIVE] , addrSocketType = Datagram })
-            (Just hostname) (Just port)
+            (Just $ connectHost options) (Just $ connectPort options)
         debugM "ServerBar.Client.connectBar" $ "serverinfo: " ++ show serverinfo
 
         let serveraddr = addrAddress serverinfo
@@ -70,7 +92,7 @@ connectClient hostname port = do
         debugM "ServerBar.Client.connectBar" $ "Received from server: " ++ (show message)
         handleAck sock message
 
-    put $ BarClientInfo name serverInfo
+    modify $ \state -> state { clientServer = mServerInfo }
 
     where
         bufferSize = 1024
@@ -78,8 +100,8 @@ connectClient hostname port = do
         handleAck :: Socket -> Message -> IO (Maybe BarServerInfo)
 
         handleAck sock (RAck cid timeout version) = return . Just $
-            BarServerInfo { serverSock = sock
-                          , serverCid = cid
+            BarServerInfo { serverSock    = sock
+                          , serverCid     = cid
                           , serverTimeout = timeout
                           , serverVersion = version
                           }
@@ -94,7 +116,7 @@ connectClient hostname port = do
 touchClient :: MonadIO m
             => BarClient m ()
 touchClient = do
-    (BarClientInfo name mServerInfo) <- get
+    BarClientInfo { clientName = name, clientServer = mServerInfo } <- get
     liftIO $ case mServerInfo of
         Nothing -> do
             errorM "ServerBar.Client.sendUpdate" $ "Connection is closed"
@@ -107,7 +129,7 @@ updateClient :: MonadIO m
              => String    -- ^ The content of the update
              -> BarClient m ()
 updateClient content = do
-    (BarClientInfo name mServerInfo) <- get
+    BarClientInfo { clientName = name, clientServer = mServerInfo } <- get
     liftIO $ case mServerInfo of
         Nothing -> do
             errorM "ServerBar.Client.sendUpdate" $ "Connection is closed"

@@ -32,6 +32,8 @@ data Options = Options
     , host    :: String -- The server host
     , name_   :: String -- The client name
     , port    :: Int    -- The server port
+    , retries :: Int    -- The number of times to retry connecting
+    , timeout :: Int    -- The number of seconds to wait for server response
     , command :: String -- The command to run
     }
     deriving (Show, Data, Typeable)
@@ -47,6 +49,10 @@ options = Options
         &= help "Specify a client name"
     , port = 9999
         &= help "The server port"
+    , retries = 0
+        &= help "Number of times to retry connecting"
+    , timeout = 30
+        &= help "Number of seconds to wait for server response"
     , host = def &= argPos 0
     , command = def &= argPos 1
     }
@@ -65,7 +71,7 @@ main = do
     options <- cmdArgs options
 
     runClient (name_ options) $ do
-        connectClient (host options) (show $ port options)
+        connectClient $ connectionOptions options
         runOnTimer (delay options) $ do
             (_, cmdOut, _, cmdHandle) <- liftIO . runInteractiveCommand $ command options
             liftIO (hGetContents cmdOut) >>= updateClient
@@ -75,4 +81,12 @@ main = do
                 ExitFailure _ -> not $ errexit options
 
     debugM "Main.main" $ "Exit"
+    where
+        connectionOptions :: Options -> ConnectionOptions
+        connectionOptions options = ConnectionOptions
+            { connectHost    = host options
+            , connectPort    = show $ port options
+            , connectRetries = retries options
+            , connectTimeout = timeout options
+            }
 

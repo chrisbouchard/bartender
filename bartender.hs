@@ -14,11 +14,11 @@ import BarTender.Server
 import BarTender.Bar
 
 data Options = Options
-    { handlers :: Int
-    , host     :: String
-    , port     :: String
-    , queue    :: Int
-    , timeout  :: Int
+    { handlers   :: Int
+    , host       :: String
+    , port       :: Int
+    , bufferSize :: Int
+    , timeout    :: Int
     }
     deriving (Show, Data, Typeable)
 
@@ -27,10 +27,10 @@ options = Options
     { handlers = 3
         &= help "The number of message handlers for the bar"
     , host = def &= argPos 0 &= opt "localhost"
-    , port = "9999"
+    , port = 9999
         &= help "The server port"
-    , queue = 5
-        &= help "The number of queued packets to allow"
+    , bufferSize = 1024
+        &= help "The buffer size for incoming packets"
     , timeout = 300
         &= help "The time to wait before killing a widget"
     }
@@ -48,9 +48,15 @@ main = do
     options <- cmdArgs options
     debugM "Main.main" $ "Options: " ++ show options
 
-    -- TODO: Use the dzen arguments here
+
     barStartup (handlers options) (timeout options)
-    serveBar (Just $ host options) (Just $ port options) (queue options) barMessageHandler
+    serveBar (serverOptions options) barMessageHandler
 
     debugM "Main.main" $ "Exit"
+    where
+        serverOptions options = defaultServerOptions
+            { serverHost = host options
+            , serverPort = show $ port options
+            , serverBufferSize = bufferSize options
+            }
 
