@@ -1,5 +1,7 @@
 module BarTender.Bar
-    ( barStartup
+    ( BarOptions(..)
+    , defaultBarOptions
+    , barStartup
     , barMessageHandler
     , protocolVersion
     ) where
@@ -27,6 +29,22 @@ import BarTender.Message
 import BarTender.Timer
 import BarTender.Widget
 
+data BarOptions = BarOptions
+    { barMessageHandlers :: Int -- ^ The number of message handlers to fork
+    , barTimeout         :: Int -- ^ The timeout in seconds for widgets to decay
+                                -- (live -> dying, dying -> dead).
+    , barCleanupDelay    :: Int -- ^ The delay in seconds between sweeps to
+                                -- collect dead widgets
+    }
+    deriving (Eq, Show)
+
+defaultBarOptions :: BarOptions
+defaultBarOptions = BarOptions
+    { barMessageHandlers = 3
+    , barTimeout         = 300
+    , barCleanupDelay    = 30
+    }
+
 -- The channel to send messages to message-processors
 messageChan :: TChan (Message, TChan (Maybe Message))
 messageChan = unsafePerformIO $ newTChanIO
@@ -39,15 +57,15 @@ widgetListVar = unsafePerformIO $ newTMVarIO []
 protocolVersion = 1
 
 -- | Start and initialize the status bar
-barStartup :: Int      -- ^ The number of message handlers to fork
-           -> Int      -- ^ The timeout for widget timers
-           -> IO ()
-barStartup n timeout = do
+barStartup :: BarOptions -> IO ()
+barStartup options = do
     debugM "StatusBar.Bar.barStartup" $ "Enter"
+    debugM "StatusBar.Bar.barStartup" $ "Options: " ++ show options
     forkIO $ feedBar stdout
-    newTimer cleanupDelay cleanupTimerAction >>= startTimer
-    replicateM_ n . forkIO $ processBarMessages
-    debugM "StatusBar.Bar.barStartup" $ "Started " ++ show n ++ " message processors."
+    newTimer (barCleanupDelay options) cleanupTimerAction >>= startTimer
+    replicateM_ (barMessageHandlers options) . forkIO $ processBarMessages
+    debugM "StatusBar.Bar.barStartup" $ "Started " ++
+        show (barMessageHandlers options) ++ " message processors."
     debugM "StatusBar.Bar.barStartup" $ "Exit"
     where
         -- Send status updates to the bar
@@ -62,9 +80,6 @@ barStartup n timeout = do
             hPutStrLn handle status
             hFlush handle
             debugM "StatusBar.Bar.feedBar" $ "Wrote status"
-
-        cleanupDelay :: Int
-        cleanupDelay = 60
 
         cleanupTimerAction :: IO Bool
         cleanupTimerAction = do
@@ -107,7 +122,7 @@ barStartup n timeout = do
 
         updateBar (RInit name) = do
             debugM "StatusBar.Bar.updateBar" $ "Enter RInit"
-            widget <- newWidget name timeout
+            widget <- newWidget name $ barTimeout options
             debugM "StatusBar.Bar.updateBar" $ "widget: " ++ show widget
             infoM "StatusBar.Bar.updateBar" $
                 "Added widget " ++ name ++ " with ID " ++ show (wId widget)
@@ -115,7 +130,7 @@ barStartup n timeout = do
                 widgetList <- takeTMVar widgetListVar
                 putTMVar widgetListVar $ insert widget widgetList
             debugM "StatusBar.Bar.updateBar" $ "Exit"
-            return . Just $ RAck (wId widget) timeout protocolVersion
+            return . Just $ RAck (wId widget) (barTimeout options) protocolVersion
 
         updateBar (RUpdate cid content) = do
             debugM "StatusBar.Bar.updateBar" $ "Enter RUpdate"

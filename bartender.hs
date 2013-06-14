@@ -49,7 +49,7 @@ main = do
     debugM "Main.main" $ "Options: " ++ show options
 
 
-    barStartup (handlers options) (timeout options)
+    barStartup $ barOptions options
     serveBar (serverOptions options) barMessageHandler
 
     debugM "Main.main" $ "Exit"
@@ -58,5 +58,10 @@ main = do
             { serverHost = host options
             , serverPort = show $ port options
             , serverBufferSize = bufferSize options
+            }
+
+        barOptions options = defaultBarOptions
+            { barMessageHandlers = handlers options
+            , barTimeout         = timeout options
             }
 
