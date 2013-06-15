@@ -57,7 +57,7 @@ executable bartender
 
 executable TestClient
   main-is: Main.hs
-  hs-source-dirs: TestClient
+  hs-source-dirs: clients/TestClient
   ghc-options: -threaded -with-rtsopts=-N
   build-depends:
     bartender,
@@ -74,7 +74,7 @@ executable TestClient
 
 executable FileClient
   main-is: Main.hs
-  hs-source-dirs: FileClient
+  hs-source-dirs: clients/FileClient
   ghc-options: -threaded -with-rtsopts=-N
   build-depends:
     bartender,
@@ -91,7 +91,7 @@ executable FileClient
 
 executable WatchClient
   main-is: Main.hs
-  hs-source-dirs: WatchClient
+  hs-source-dirs: clients/WatchClient
   ghc-options: -threaded -with-rtsopts=-N
   build-depends:
     bartender,
