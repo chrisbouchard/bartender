@@ -42,33 +42,24 @@ executable bartender
   main-is: Main.hs
   hs-source-dirs: bartender-server
   ghc-options: -threaded -with-rtsopts=-N
+  extensions: DeriveDataTypeable
   build-depends:
     bartender,
     base ==4.6.*,
     cmdargs ==0.10.*,
-    hslogger ==1.2.*,
-    mtl ==2.1.*,
-    network ==2.4.*,
-    old-locale ==1.0.*,
-    process ==1.1.*,
-    stm ==2.4.*,
-    time ==1.4.*,
-    transformers ==0.3.*
+    hslogger ==1.2.*
 
 executable TestClient
   main-is: Main.hs
   hs-source-dirs: clients/TestClient
   ghc-options: -threaded -with-rtsopts=-N
+  extensions: DeriveDataTypeable
   build-depends:
     bartender,
     base ==4.6.*,
     cmdargs ==0.10.*,
     hslogger ==1.2.*,
-    mtl ==2.1.*,
-    network ==2.4.*,
     old-locale ==1.0.*,
-    process ==1.1.*,
-    stm ==2.4.*,
     time ==1.4.*,
     transformers ==0.3.*
 
@@ -76,33 +67,25 @@ executable FileClient
   main-is: Main.hs
   hs-source-dirs: clients/FileClient
   ghc-options: -threaded -with-rtsopts=-N
+  extensions: DeriveDataTypeable
   build-depends:
     bartender,
     base ==4.6.*,
     cmdargs ==0.10.*,
     hslogger ==1.2.*,
-    mtl ==2.1.*,
-    network ==2.4.*,
-    old-locale ==1.0.*,
     process ==1.1.*,
-    stm ==2.4.*,
-    time ==1.4.*,
     transformers ==0.3.*
 
 executable WatchClient
   main-is: Main.hs
   hs-source-dirs: clients/WatchClient
   ghc-options: -threaded -with-rtsopts=-N
+  extensions: DeriveDataTypeable
   build-depends:
     bartender,
     base ==4.6.*,
     cmdargs ==0.10.*,
     hslogger ==1.2.*,
-    mtl ==2.1.*,
-    network ==2.4.*,
-    old-locale ==1.0.*,
     process ==1.1.*,
-    stm ==2.4.*,
-    time ==1.4.*,
     transformers ==0.3.*
 

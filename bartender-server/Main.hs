@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -XDeriveDataTypeable #-}
 module Main (main) where
 
 import Control.Applicative

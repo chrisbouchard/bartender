@@ -1,12 +1,8 @@
-{-# OPTIONS_GHC -XDeriveDataTypeable #-}
 module Main (main) where
 
 import Control.Applicative
-import Control.Concurrent
-import Control.Concurrent.STM.TMVar
 import Control.Monad
 import Control.Monad.IO.Class
-import Control.Monad.STM
 
 import Data.Time.Format
 import Data.Time.LocalTime
