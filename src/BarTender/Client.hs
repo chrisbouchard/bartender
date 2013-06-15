@@ -11,6 +11,7 @@ module BarTender.Client
 
 import Control.Applicative
 import Control.Concurrent
+import Control.Exception
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.State
@@ -54,7 +55,7 @@ defaultConnectionOptions :: ConnectionOptions
 defaultConnectionOptions = ConnectionOptions
     { connectHost    = "localhost"
     , connectPort    = "9999"
-    , connectRetries = 0
+    , connectRetries = 3
     , connectTimeout = 60
     }
 
@@ -84,6 +85,8 @@ connectClient options = do
         sock <- socket (addrFamily serverinfo) (addrSocketType serverinfo) defaultProtocol
         debugM "ServerBar.Client.connectBar" $ "sock: " ++ show sock
 
+        setSocketOption sock RecvTimeOut $ connectTimeout options
+
         connect sock serveraddr
         debugM "ServerBar.Client.connectBar" $ "Connected socket"
 
@@ -97,15 +100,18 @@ connectClient options = do
     where
         bufferSize = 1024
 
-        handleAck :: Socket -> Message -> IO (Maybe BarServerInfo)
+        attempt :: Int -> IO a -> IO (Maybe a)
+        attempt 0 action = return Nothing
+        attempt n action = (Just <$> action)
+            `catch` \(e :: IOException) -> attempt (n-1) action
 
+        handleAck :: Socket -> Message -> IO (Maybe BarServerInfo)
         handleAck sock (RAck cid timeout version) = return . Just $
             BarServerInfo { serverSock    = sock
                           , serverCid     = cid
                           , serverTimeout = timeout
                           , serverVersion = version
                           }
-
         handleAck sock message = do
             shutdown sock ShutdownBoth
             errorM "ServerBar.Client.handleAck" $ "Server did not respond with Ack"
