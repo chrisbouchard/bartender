@@ -12,6 +12,8 @@ build-type:          Simple
 cabal-version:       >=1.8
 
 library
+  hs-source-dirs: src
+  extensions: ScopedTypeVariables
   exposed-modules:
     BarTender.Bar,
     BarTender.Client,
@@ -37,19 +39,11 @@ library
     transformers ==0.3.*
 
 executable bartender
-  main-is: bartender.hs
+  main-is: Main.hs
+  hs-source-dirs: bartender-server
   ghc-options: -threaded -with-rtsopts=-N
-  other-modules:
-    BarTender.Bar,
-    BarTender.Client,
-    BarTender.Dzen,
-    BarTender.Message,
-    BarTender.Process,
-    BarTender.Server,
-    BarTender.Timer,
-    BarTender.Util,
-    BarTender.Widget
   build-depends:
+    bartender,
     base ==4.6.*,
     cmdargs ==0.10.*,
     hslogger ==1.2.*,
@@ -62,19 +56,11 @@ executable bartender
     transformers ==0.3.*
 
 executable TestClient
-  main-is: TestClient.hs
+  main-is: Main.hs
+  hs-source-dirs: TestClient
   ghc-options: -threaded -with-rtsopts=-N
-  other-modules:
-    BarTender.Bar,
-    BarTender.Client,
-    BarTender.Dzen,
-    BarTender.Message,
-    BarTender.Process,
-    BarTender.Server,
-    BarTender.Timer,
-    BarTender.Util,
-    BarTender.Widget
   build-depends:
+    bartender,
     base ==4.6.*,
     cmdargs ==0.10.*,
     hslogger ==1.2.*,
@@ -87,19 +73,11 @@ executable TestClient
     transformers ==0.3.*
 
 executable FileClient
-  main-is: FileClient.hs
+  main-is: Main.hs
+  hs-source-dirs: FileClient
   ghc-options: -threaded -with-rtsopts=-N
-  other-modules:
-    BarTender.Bar,
-    BarTender.Client,
-    BarTender.Dzen,
-    BarTender.Message,
-    BarTender.Process,
-    BarTender.Server,
-    BarTender.Timer,
-    BarTender.Util,
-    BarTender.Widget
   build-depends:
+    bartender,
     base ==4.6.*,
     cmdargs ==0.10.*,
     hslogger ==1.2.*,
@@ -112,19 +90,11 @@ executable FileClient
     transformers ==0.3.*
 
 executable WatchClient
-  main-is: WatchClient.hs
+  main-is: Main.hs
+  hs-source-dirs: WatchClient
   ghc-options: -threaded -with-rtsopts=-N
-  other-modules:
-    BarTender.Bar,
-    BarTender.Client,
-    BarTender.Dzen,
-    BarTender.Message,
-    BarTender.Process,
-    BarTender.Server,
-    BarTender.Timer,
-    BarTender.Util,
-    BarTender.Widget
   build-depends:
+    bartender,
     base ==4.6.*,
     cmdargs ==0.10.*,
     hslogger ==1.2.*,
