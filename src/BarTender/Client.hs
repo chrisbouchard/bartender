@@ -11,7 +11,7 @@ module BarTender.Client
 
 import Control.Applicative
 import Control.Concurrent
-import Control.Exception
+import Control.Exception.Base
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.State
@@ -22,6 +22,7 @@ import Network.Socket
 import System.IO
 import System.Log.Logger
 import System.Log.Handler.Simple
+import System.Timeout
 
 import BarTender.Message
 
@@ -82,28 +83,43 @@ connectClient options = do
 
         let serveraddr = addrAddress serverinfo
 
+        debugM "ServerBar.Client.connectBar" $ "Attempting socket"
         sock <- socket (addrFamily serverinfo) (addrSocketType serverinfo) defaultProtocol
         debugM "ServerBar.Client.connectBar" $ "sock: " ++ show sock
 
-        setSocketOption sock RecvTimeOut $ connectTimeout options
-
+        debugM "ServerBar.Client.connectBar" $ "Attempting connection"
         connect sock serveraddr
+
         debugM "ServerBar.Client.connectBar" $ "Connected socket"
 
-        send sock . show $ RInit name
-        message <- parseMessage <$> recv sock bufferSize
-        debugM "ServerBar.Client.connectBar" $ "Received from server: " ++ (show message)
-        handleAck sock message
+        mMessage <- attempt (connectTimeout options) (connectRetries options) $ do
+            debugM "ServerBar.Client.connectBar" $ "Sending init message"
+            send sock . show $ RInit name
+            message <- parseMessage <$> recv sock bufferSize
+            debugM "ServerBar.Client.connectBar" $ "Received from server: " ++ (show message)
+            return message
+
+        case mMessage of
+            Nothing      -> return Nothing
+            Just message -> handleAck sock message
 
     modify $ \state -> state { clientServer = mServerInfo }
 
     where
         bufferSize = 1024
 
-        attempt :: Int -> IO a -> IO (Maybe a)
-        attempt 0 action = return Nothing
-        attempt n action = (Just <$> action)
-            `catch` \(e :: IOException) -> attempt (n-1) action
+        seconds = 10 ^ 6
+
+        -- Try an action a given number of times, failing on exception or after
+        -- a specified timeout.
+        attempt :: Int -> Int -> IO a -> IO (Maybe a)
+        attempt waitTime 0 action = return Nothing
+        attempt waitTime n action = do
+            result <- catch (timeout (waitTime * seconds) action)
+                            (\(e :: IOException) -> return Nothing)
+            case result of
+                Just x  -> return $ Just x
+                Nothing -> attempt waitTime (n - 1) action
 
         handleAck :: Socket -> Message -> IO (Maybe BarServerInfo)
         handleAck sock (RAck cid timeout version) = return . Just $
@@ -123,7 +139,7 @@ touchClient :: MonadIO m
             => BarClient m ()
 touchClient = do
     BarClientInfo { clientName = name, clientServer = mServerInfo } <- get
-    liftIO $ case mServerInfo of
+    liftIO . withSocketsDo $ case mServerInfo of
         Nothing -> do
             errorM "ServerBar.Client.sendUpdate" $ "Connection is closed"
         (Just serverInfo) -> do
@@ -136,7 +152,7 @@ updateClient :: MonadIO m
              -> BarClient m ()
 updateClient content = do
     BarClientInfo { clientName = name, clientServer = mServerInfo } <- get
-    liftIO $ case mServerInfo of
+    liftIO . withSocketsDo $ case mServerInfo of
         Nothing -> do
             errorM "ServerBar.Client.sendUpdate" $ "Connection is closed"
         (Just serverInfo) -> do

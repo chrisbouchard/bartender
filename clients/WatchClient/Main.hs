@@ -4,6 +4,8 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class
 
+import GHC.IO (evaluate)
+
 import System.Console.CmdArgs
 import System.Environment
 import System.Exit
@@ -31,8 +33,8 @@ data Options = Options
     deriving (Show, Data, Typeable)
 
 -- Set default options and annotations
-options :: Options
-options = Options
+defaultOptions :: Options
+defaultOptions = Options
     { delay = 10
         &= help "The time between updates"
     , errexit = False
@@ -52,6 +54,14 @@ options = Options
     &= summary "WatchClient v0.1.0"
     &= help "Watch a command and send its output to a StatusBar server."
 
+connectionOptions :: Options -> ConnectionOptions
+connectionOptions options = ConnectionOptions
+    { connectHost    = host options
+    , connectPort    = show $ port options
+    , connectRetries = retries options
+    , connectTimeout = timeout options
+    }
+
 main :: IO ()
 main = do
     -- Set up logging
@@ -60,25 +70,33 @@ main = do
 
     debugM "Main.main" $ "Enter"
 
-    options <- cmdArgs options
+    options <- cmdArgs defaultOptions
 
     runClient (name_ options) $ do
         connectClient $ connectionOptions options
-        runOnTimer (delay options) $ do
-            (_, cmdOut, _, cmdHandle) <- liftIO . runInteractiveCommand $ command options
-            liftIO (hGetContents cmdOut) >>= updateClient
-            code <- liftIO $ waitForProcess cmdHandle
-            return $ case code of
-                ExitSuccess   -> True
-                ExitFailure _ -> not $ errexit options
+        updateFromCommand options
+        runOnTimer (delay options) $ updateFromCommand options
 
     debugM "Main.main" $ "Exit"
-    where
-        connectionOptions :: Options -> ConnectionOptions
-        connectionOptions options = ConnectionOptions
-            { connectHost    = host options
-            , connectPort    = show $ port options
-            , connectRetries = retries options
-            , connectTimeout = timeout options
-            }
+
+updateFromCommand :: MonadIO m => Options -> BarClient m Bool
+updateFromCommand options = do
+    liftIO . debugM "Main.updateFromCommand" $ "Enter"
+    liftIO . debugM "Main.updateFromCommand" $ "Running: " ++ command options
+    (cmdIn, cmdOut, _, cmdHandle) <- liftIO . runInteractiveCommand $
+        command options
+    liftIO . debugM "Main.updateFromCommand" $ "Closing process's stdin"
+    -- liftIO $ hClose cmdIn
+    liftIO . debugM "Main.updateFromCommand" $ "Getting output"
+    output <- liftIO $ hGetContents cmdOut >>= evaluate
+    liftIO . debugM "Main.updateFromCommand" $ "Output: " ++ output
+    liftIO . debugM "Main.updateFromCommand" $ "Sending output to server"
+    updateClient output
+    liftIO . debugM "Main.updateFromCommand" $ "Waiting for exit status"
+    code <- liftIO $ waitForProcess cmdHandle
+    value <- return $ case code of
+        ExitSuccess   -> True
+        ExitFailure _ -> not $ errexit options
+    liftIO . debugM "Main.updateFromCommand" $ "Exit with: " ++ show value
+    return value
 
