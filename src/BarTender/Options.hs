@@ -18,17 +18,25 @@ import Text.ParserCombinators.Parsec
 
 import BarTender.Util
 
+-- | Works like getOpt from System.Console.GetOpt, except it parses a config
+-- file instead of a list of tokens. Short option names are ignored.
+getConfigOpt :: [OptDescr a]
+             -> FilePath
+             -> IO ([a], [String], [String])
+getConfigOpt descList path = do
+    (x, y, z, _) <- getConfigOpt' descList path
+    return (x, y, z)
+
 -- | Works like getOpt' from System.Console.GetOpt, except it parses a config
 -- file instead of a list of tokens. Short option names are ignored.
-getConfigOpt' :: ArgOrder a
-              -> [OptDescr a]
+getConfigOpt' :: [OptDescr a]
               -> FilePath
               -> IO ([a], [String], [String], [String])
-getConfigOpt' order descList path = do
+getConfigOpt' descList path = do
     errorOrPairs <- parseFromFile file path
     return $ case errorOrPairs of
         Left error  -> ([], [], [], [show error])
-        Right pairs -> getOpt' order descList $ foldr fn [] pairs
+        Right pairs -> getOpt' RequireOrder descList $ foldr fn [] pairs
     where
         fn :: (String, String) -> [String] -> [String]
         fn (key, value) list = (++ list) $ case getArgDescr key descList of
@@ -46,6 +54,18 @@ getConfigOpt' order descList path = do
         getArgDescr key ls = listToMaybe . catMaybes $ do
             (Option shortLs longLs descr help) <- ls
             return $ ifJust (key `elem` longLs) descr
+
+-- | Works like getOpt from System.Console.GetOpt, except it parses a config
+-- file instead of a list of tokens. Short option names are ignored.
+getEnvironOpt :: [OptDescr a]
+              -> IO ([a], [String], [String])
+getEnvironOpt descList = do
+    (x, y, z, _) <- getEnvironOpt' descList
+    return (x, y, z)
+
+getEnvironOpt' :: [OptDescr a]
+               -> IO ([a], [String], [String], [String])
+getEnvironOpt' descList = return () -- TODO: Write this method.
 
 -- | Convert a string to a bool in an intelligent way: If the string is one of
 -- "false", "no", or "off", then the result is Just False. If the string is one
