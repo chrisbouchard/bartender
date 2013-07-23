@@ -31,9 +31,9 @@ Running
 -------
 
 To run bartender, run the `bartender` executable. Note that this will dump all
-output to the terminal (i.e., standard out). Most users will want to direct
-point bartender at an instance of dzen. Assuming `dzen2` is installed in your
-path, you can run them at the same time in a Unix-style shell by running
+output to the terminal (i.e., standard out). Most users will want to point
+bartender at an instance of dzen. Assuming `dzen2` is installed in your path,
+you can run them at the same time in a Unix-style shell by running
 
     bartender | dzen2
 
