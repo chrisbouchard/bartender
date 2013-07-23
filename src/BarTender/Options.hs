@@ -1,11 +1,10 @@
-module BarTender.Options where
+module BarTender.Options
+    ( getConfigOpt'
+    ) where
 
-import Control.Applicative
 import Control.Monad
-import Control.Monad.Error
 
 import Data.Char
-import Data.ConfigFile
 import Data.Maybe
 
 import Data.Map (Map)
@@ -17,102 +16,59 @@ import System.IO
 import System.Log.Logger
 import System.Log.Handler.Simple
 
-readCommandLineOptions :: [OptDescr (Int, a)] -> ArgOrder (Int, a) -> IO (Map Int a)
-readCommandLineOptions opts order = do
-    argv <- getArgs
-    case getOpt order opts argv of
-         -- TODO: Return n somehow (non-options)
-        (o, n, [])   -> return $ M.fromList o
-        (_, _, errs) -> ioError $ userError "Oops"
+import Text.ParserCombinators.Parsec
 
-readConfigFileOptions :: [OptDescr (Int, a)] -> FilePath -> IO (Map Int a)
-readConfigFileOptions opts path = do
-    eCp <- readfile emptyCP path
-    return $ case eCp of
-        Left _   -> M.empty
-        Right cp -> M.unions $ readOption (ignoreCase cp) <$> opts
+getConfigOpt' :: ArgOrder a -> [OptDescr a] -> FilePath -> IO ([a], [String], [String], [String])
+getConfigOpt' order descList path = do
+    errorOrPairs <- parseFromFile file path
+    return $ case errorOrPairs of
+        Left error  -> ([], [], [], [show error])
+        Right pairs -> getOpt' order descList $ foldr fn [] pairs
     where
-        ignoreCase :: ConfigParser -> ConfigParser
-        ignoreCase cp = cp { optionxform = map toUpper }
+        fn :: (String, String) -> [String] -> [String]
+        fn (key, value) list = (++ list) $ case getArgDescr key descList of
+            Just (NoArg x)       -> ["--" ++ key]
+            Just (ReqArg fn str) -> ["--" ++ key, value]
+            Nothing              -> ["--" ++ key, value]
 
-        readOption :: ConfigParser -> OptDescr (Int, a) -> Map Int a
-        readOption cp (Option _ names descr _) =
-            createMap . listToMaybe . catMaybes $
-                readSingleOption cp descr <$> names
-
-        createMap :: Maybe (Int, a) -> Map Int a
-        createMap = maybe M.empty $ uncurry M.singleton
-
-        readSingleOption :: ConfigParser -> ArgDescr (Int, a) -> String -> Maybe (Int, a)
-
-        readSingleOption cp (NoArg x) name =
-            case get cp "DEFAULT" name of
-                Right True -> Just x
-                _          -> Nothing
-
-        readSingleOption cp (ReqArg fn _) name =
-            case get cp "DEFAULT" name of
-                Right str -> Just $ fn str
-                _         -> Nothing
-
-        readSingleOption cp (OptArg fn _) name =
-            case get cp "DEFAULT" name of
-                Right ""  -> Just $ fn Nothing
-                Right str -> Just . fn $ Just str
-                _         -> Nothing
-
-readEnvironmentOptions :: [OptDescr (Int, a)] -> String -> IO (Map Int a)
-readEnvironmentOptions opts prefix = M.unions <$> (sequence $ lookupOption <$> opts)
+getArgDescr :: String -> [OptDescr a] -> Maybe (ArgDescr a)
+getArgDescr key ls = listToMaybe . catMaybes $ do
+    (Option shortLs longLs descr help) <- ls
+    return $ if key `elem` longLs
+        then Just $ mapDescr descr
+        else Nothing
     where
-        lookupOption :: OptDescr (Int, a) -> IO (Map Int a)
-        lookupOption (Option _ names descr _) =
-            createMap <$> listToMaybe . catMaybes <$>
-                sequence (lookupSingleOption descr . nameToKey <$> names)
+        mapDescr :: ArgDescr a -> ArgDescr a
+        mapDescr (NoArg x)       = NoArg x
+        mapDescr (ReqArg fn str) = ReqArg fn str
+        mapDescr (OptArg fn str) = ReqArg (fn . Just) str
 
-        createMap :: Maybe (Int, a) -> Map Int a
-        createMap = maybe M.empty $ uncurry M.singleton
+eol :: Parser ()
+eol = do oneOf "\n\r"
+         return ()
+      <?> "end of line"
 
-        lookupSingleOption :: ArgDescr (Int, a) -> String -> IO (Maybe (Int, a))
-        lookupSingleOption (NoArg x)     key = lookupEnv key >>= return . (const x <$>)
-        lookupSingleOption (ReqArg fn _) key = lookupEnv key >>= return . (fn <$>)
-        lookupSingleOption (OptArg fn _) key = do
-            mStr <- lookupEnv key
-            return $ case mStr of
-                Just ""  -> Just $ fn Nothing
-                Just str -> Just . fn $ Just str
-                _        -> Nothing
+comment :: Parser ()
+comment = do char '#'
+             manyTill anyChar (try eol)
+             return ()
+          <?> "comment"
 
-        nameToKey :: String -> String
-        nameToKey name = map toUpper $ prefix ++ "_" ++ name
-
-readAllOptions :: [OptDescr a] -> FilePath -> ArgOrder a -> String -> IO [a]
-readAllOptions opts path order prefix = do
-    configOpts <- readConfigFileOptions indexedOpts path
-    envOpts <- readEnvironmentOptions indexedOpts prefix
-    cmdOpts <- readCommandLineOptions indexedOpts indexedArgOrder
-
-    -- Union is left-biased, so we'll favor command-line options over
-    -- environment options over config-file options.
-    return . M.elems $ cmdOpts `M.union` envOpts `M.union` configOpts
+item :: Parser (String, String)
+item = do
+    key <- manyTill anyChar $ char '='
+    skipMany space
+    value <- manyTill anyChar $ try eol <|> try comment <|> eof
+    return (rstrip key, rstrip value)
     where
-        -- I can't give these types because Haskell 98 doesn't allow you to
-        -- include a type variable bound by your context.
-        indexedOpts = getOptionListWithIndex opts
-        indexedArgOrder = getArgOrderWithIndex order
+        rstrip :: String -> String
+        rstrip = reverse . dropWhile isSpace . reverse
 
-        -- Create options that know their order in the specification
-        getOptionListWithIndex :: [OptDescr a] -> [OptDescr (Int, a)]
-        getOptionListWithIndex opts = getOptionWithIndex <$> zip [1..] opts
+line :: Parser (Maybe (String, String))
+line = do
+    skipMany space
+    try (comment >> return Nothing) <|> (item >>= return . Just)
 
-        getOptionWithIndex :: (Int, OptDescr a) -> OptDescr (Int, a)
-        getOptionWithIndex (i, Option flags names descr help) =
-            Option flags names (getArgDescrWithIndex i descr) help
-
-        getArgDescrWithIndex :: Int -> ArgDescr a -> ArgDescr (Int, a)
-        getArgDescrWithIndex i (NoArg x)       = NoArg (i, x)
-        getArgDescrWithIndex i (ReqArg fn str) = ReqArg (\x -> (i, fn x)) str
-        getArgDescrWithIndex i (OptArg fn str) = OptArg (\x -> (i, fn x)) str
-
-        getArgOrderWithIndex :: ArgOrder a -> ArgOrder (Int, a)
-        getArgOrderWithIndex (ReturnInOrder fn) = ReturnInOrder (\x -> (0, fn x))
+file :: Parser [(String, String)]
+file = many line >>= return . catMaybes
 
