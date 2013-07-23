@@ -18,7 +18,7 @@ doWhile cond body = do
         then doWhile cond body
         else return x
 
--- | Read a value from a string, indicating failure with Nothing
+-- | Read a value from a string, indicating failure with @Nothing@
 maybeRead :: Read a => String -> Maybe a
 maybeRead = fmap fst . listToMaybe . reads
 

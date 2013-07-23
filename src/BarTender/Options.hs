@@ -1,5 +1,8 @@
 module BarTender.Options
-    ( getConfigOpt'
+    ( getConfigOpt
+    , getConfigOpt'
+    , getEnvironOpt
+    , getEnvironOpt'
     , parseMaybeBool
     ) where
 
@@ -18,7 +21,7 @@ import Text.ParserCombinators.Parsec
 
 import BarTender.Util
 
--- | Works like getOpt from System.Console.GetOpt, except it parses a config
+-- | Works like getOpt from "System.Console.GetOpt", except it parses a config
 -- file instead of a list of tokens. Short option names are ignored.
 getConfigOpt :: [OptDescr a]
              -> FilePath
@@ -27,7 +30,7 @@ getConfigOpt descList path = do
     (x, y, z, _) <- getConfigOpt' descList path
     return (x, y, z)
 
--- | Works like getOpt' from System.Console.GetOpt, except it parses a config
+-- | Works like getOpt' from "System.Console.GetOpt", except it parses a config
 -- file instead of a list of tokens. Short option names are ignored.
 getConfigOpt' :: [OptDescr a]
               -> FilePath
@@ -40,37 +43,67 @@ getConfigOpt' descList path = do
     where
         fn :: (String, String) -> [String] -> [String]
         fn (key, value) list = (++ list) $ case getArgDescr key descList of
-            Just (NoArg x)       -> case parseMaybeBool value of
-                                        Just True  -> ["--" ++ key]
-                                        Just False -> ["--no-" ++ key]
-                                        Nothing    -> []
-            Just (OptArg fn str) -> if null value
-                                        then ["--" ++ key]
-                                        else ["--" ++ key, value]
-            Just (ReqArg fn str) -> ["--" ++ key, value]
-            Nothing              -> []
+            Just (NoArg _)    -> case parseMaybeBool value of
+                                     Just True  -> ["--" ++ key]
+                                     Just False -> ["--no-" ++ key]
+                                     Nothing    -> []
+            Just (OptArg _ _) -> if null value
+                                     then ["--" ++ key]
+                                     else ["--" ++ key, value]
+            Just (ReqArg _ _) -> ["--" ++ key, value]
+            Nothing           -> []
 
         getArgDescr :: String -> [OptDescr a] -> Maybe (ArgDescr a)
         getArgDescr key ls = listToMaybe . catMaybes $ do
             (Option shortLs longLs descr help) <- ls
             return $ ifJust (key `elem` longLs) descr
 
--- | Works like getOpt from System.Console.GetOpt, except it parses a config
--- file instead of a list of tokens. Short option names are ignored.
+-- | Works like getOpt from "System.Console.GetOpt", except it searches the
+-- environment for options instead of parsing a list of tokens. Short option
+-- names are ignored. A flag @--foo-bar@ will correspond to the environment
+-- variable @FOO_BAR@.
 getEnvironOpt :: [OptDescr a]
               -> IO ([a], [String], [String])
 getEnvironOpt descList = do
     (x, y, z, _) <- getEnvironOpt' descList
     return (x, y, z)
 
+-- | Works like getOpt' from "System.Console.GetOpt", except it searches the
+-- environment for options instead of parsing a list of tokens. Short option
+-- names are ignored. A flag @--foo-bar@ will correspond to the environment
+-- variable @FOO_BAR@.
 getEnvironOpt' :: [OptDescr a]
                -> IO ([a], [String], [String], [String])
-getEnvironOpt' descList = return () -- TODO: Write this method.
+getEnvironOpt' descList = do
+    argList <- fmap concat . sequence $ map optionToArgs descList
+    return $ getOpt' RequireOrder descList $ argList
+    where
+        optionToArgs :: OptDescr a -> IO [String]
+        optionToArgs (Option shortLs longLs descr help) = do
+            mValue <- getEnvironValue longLs
+            return $ case mValue of
+                Nothing    -> []
+                Just value -> let key = head longLs in
+                    case descr of
+                        NoArg _    -> ["--" ++ key]
+                        OptArg _ _ -> ["--" ++ key, value]
+                        ReqArg _ _ -> if null value
+                                          then ["--" ++ key]
+                                          else ["--" ++ key, value]
+
+        getEnvironValue :: [String] -> IO (Maybe String)
+        getEnvironValue keyLs = do
+            resultLs <- sequence $ map (lookupEnv . toEnvironKey) keyLs
+            return . listToMaybe $ catMaybes resultLs
+
+        toEnvironKey :: String -> String
+        toEnvironKey = map $ toUpper . (\c -> if c == '-' then '_' else c)
 
 -- | Convert a string to a bool in an intelligent way: If the string is one of
--- "false", "no", or "off", then the result is Just False. If the string is one
--- of "true", "yes", or "on", then the result is Just True. Otherwise the
--- result is Nothing. The match is case-insensitive.
+-- @\"false\"@, @\"no\"@, or @\"off\"@, then the result is @Just False@. If the
+-- string is one of @\"true\"@, @\"yes\"@, or @\"on\"@, then the result is
+-- @Just True@. Otherwise the result is @Nothing@. The match is
+-- case-insensitive.
 parseMaybeBool :: String -> Maybe Bool
 parseMaybeBool str = listToMaybe . catMaybes . map getResult $
     [ (True,  [ "true", "yes", "on" ])

@@ -20,14 +20,14 @@ import System.IO.Unsafe
 childListVar :: TMVar [(ThreadId, TMVar ())]
 childListVar = unsafePerformIO $ newTMVarIO []
 
--- | Create a child thread that can be waited on by waitForChildren. See
--- 'Control.Concurrent.forkIO'.
+-- | Create a child thread that can be waited on by 'waitForChildren'. See
+-- "Control.Concurrent.forkIO".
 forkChild :: IO () -> IO ThreadId
 forkChild action = forkChildFinally action $ \_ -> return ()
 
--- | Create a child thread that can be waited on by waitForChildren, and call
+-- | Create a child thread that can be waited on by 'waitForChildren', and call
 -- the supplied function when the thread is about to terminate. See
--- 'Control.Concurrent.forkFinally'.
+-- "Control.Concurrent.forkFinally".
 forkChildFinally :: IO a -> (Either SomeException a -> IO ()) -> IO ThreadId
 forkChildFinally action handler = do
     childVar <- newEmptyTMVarIO

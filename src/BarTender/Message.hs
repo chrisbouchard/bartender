@@ -69,7 +69,7 @@ messageCommand RPoke          = "poke"
 messageCommand (RUpdate _ _)  = "update"
 messageCommand (RUnknown cmd) = cmd
 
--- | Split off the next n tokens. The resulting list will contain the tokens
+-- | Split off the next /n/ tokens. The resulting list will contain the tokens
 -- and the remainder of the string.
 splitTokens :: Int -> String -> [String]
 splitTokens 0 str = [str]

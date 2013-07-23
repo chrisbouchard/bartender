@@ -4,9 +4,10 @@ module BarTender.Dzen where
 disabledColor :: String
 disabledColor = "#333333"
 
--- | Apply foreground and background color to string using Dzen escapes.
--- Note that @dzenColor fg bg@ and @dzenColorFG fg . dzenColorBG bg@ are
--- equivalent.
+-- | Apply foreground and background color to string using Dzen escapes. Note
+-- the following equivalence:
+--
+-- > dzenColor fg bg  ==  dzenColorFG fg . dzenColorBG bg
 dzenColor :: String -- ^ Foreground color
           -> String -- ^ Background color
           -> String -- ^ The string to wrap with color
