@@ -8,9 +8,6 @@ import Control.Monad
 import Data.Char
 import Data.Maybe
 
-import Data.Map (Map)
-import qualified Data.Map as M
-
 import System.Console.GetOpt
 import System.Environment
 import System.IO
@@ -18,6 +15,8 @@ import System.Log.Logger
 import System.Log.Handler.Simple
 
 import Text.ParserCombinators.Parsec
+
+import BarTender.Util
 
 -- | Works like getOpt' from System.Console.GetOpt, except it parses a config
 -- file instead of a list of tokens. Short option names are ignored.
@@ -46,36 +45,33 @@ getConfigOpt' order descList path = do
         getArgDescr :: String -> [OptDescr a] -> Maybe (ArgDescr a)
         getArgDescr key ls = listToMaybe . catMaybes $ do
             (Option shortLs longLs descr help) <- ls
-            return $ if key `elem` longLs
-                then Just $ descr
-                else Nothing
+            return $ ifJust (key `elem` longLs) descr
 
 -- | Convert a string to a bool in an intelligent way: If the string is one of
 -- "false", "no", or "off", then the result is Just False. If the string is one
 -- of "true", "yes", or "on", then the result is Just True. Otherwise the
 -- result is Nothing.
-parseMaybeBool :: String
-               -> Maybe Bool
+parseMaybeBool :: String -> Maybe Bool
 parseMaybeBool str = listToMaybe . catMaybes . map getResult $
     [ (True,  [ "true", "yes", "on" ])
     , (False, [ "false", "no", "off" ])
     ]
     where
         getResult :: (Bool, [String]) -> Maybe Bool
-        getResult (bool, ls) = if (elem . map toLower) str ls
-            then Just bool
-            else Nothing
+        getResult (bool, ls) = ifJust ((elem . map toLower) str ls) bool
 
 eol :: Parser ()
-eol = do oneOf "\n\r"
-         return ()
-      <?> "end of line"
+eol = do
+    oneOf "\n\r"
+    return ()
+    <?> "end of line"
 
 comment :: Parser ()
-comment = do char '#'
-             manyTill anyChar (try eol)
-             return ()
-          <?> "comment"
+comment = do
+    char '#'
+    manyTill anyChar (try eol)
+    return ()
+    <?> "comment"
 
 item :: Parser (String, String)
 item = do

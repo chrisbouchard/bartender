@@ -25,3 +25,11 @@ maybeRead = fmap fst . listToMaybe . reads
 -- | Join a list of strings by spaces
 spaced :: [String] -> String
 spaced = intercalate " "
+
+-- | Conditionally wraps a value in a Maybe. Satisfies the following axioms:
+--
+-- > ifJust True  ==  Just
+-- > ifJust False  ==  const Nothing
+ifJust :: Bool -> a -> Maybe a
+ifJust b x = guard b >> Just x
+
