@@ -1,5 +1,6 @@
 module BarTender.Options
     ( getConfigOpt'
+    , parseMaybeBool
     ) where
 
 import Control.Monad
@@ -18,6 +19,8 @@ import System.Log.Handler.Simple
 
 import Text.ParserCombinators.Parsec
 
+-- | Works like getOpt' from System.Console.GetOpt, except it parses a config
+-- file instead of a list of tokens. Short option names are ignored.
 getConfigOpt' :: ArgOrder a -> [OptDescr a] -> FilePath -> IO ([a], [String], [String], [String])
 getConfigOpt' order descList path = do
     errorOrPairs <- parseFromFile file path
@@ -27,21 +30,37 @@ getConfigOpt' order descList path = do
     where
         fn :: (String, String) -> [String] -> [String]
         fn (key, value) list = (++ list) $ case getArgDescr key descList of
-            Just (NoArg x)       -> ["--" ++ key]
+            Just (NoArg x)       -> case parseMaybeBool value of
+                                        Just True  -> ["--" ++ key]
+                                        Just False -> ["--no-" ++ key]
+                                        Nothing    -> []
+            Just (OptArg fn str) -> if null value
+                                        then ["--" ++ key]
+                                        else ["--" ++ key, value]
             Just (ReqArg fn str) -> ["--" ++ key, value]
-            Nothing              -> ["--" ++ key, value]
+            Nothing              -> []
 
-getArgDescr :: String -> [OptDescr a] -> Maybe (ArgDescr a)
-getArgDescr key ls = listToMaybe . catMaybes $ do
-    (Option shortLs longLs descr help) <- ls
-    return $ if key `elem` longLs
-        then Just $ mapDescr descr
-        else Nothing
+        getArgDescr :: String -> [OptDescr a] -> Maybe (ArgDescr a)
+        getArgDescr key ls = listToMaybe . catMaybes $ do
+            (Option shortLs longLs descr help) <- ls
+            return $ if key `elem` longLs
+                then Just $ descr
+                else Nothing
+
+-- | Convert a string to a bool in an intelligent way: If the string is one of
+-- "false", "no", or "off", then the result is Just False. If the string is one
+-- of "true", "yes", or "on", then the result is Just True. Otherwise the
+-- result is Nothing.
+parseMaybeBool :: String -> Maybe Bool
+parseMaybeBool str = listToMaybe . catMaybes . map getResult $
+    [ (True,  [ "true", "yes", "on" ])
+    , (False, [ "false", "no", "off" ])
+    ]
     where
-        mapDescr :: ArgDescr a -> ArgDescr a
-        mapDescr (NoArg x)       = NoArg x
-        mapDescr (ReqArg fn str) = ReqArg fn str
-        mapDescr (OptArg fn str) = ReqArg (fn . Just) str
+        getResult :: (Bool, [String]) -> Maybe Bool
+        getResult (bool, ls) = if (elem . map toLower) str ls
+            then Just bool
+            else Nothing
 
 eol :: Parser ()
 eol = do oneOf "\n\r"
