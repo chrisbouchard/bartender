@@ -50,7 +50,7 @@ getConfigOpt' order descList path = do
 -- | Convert a string to a bool in an intelligent way: If the string is one of
 -- "false", "no", or "off", then the result is Just False. If the string is one
 -- of "true", "yes", or "on", then the result is Just True. Otherwise the
--- result is Nothing.
+-- result is Nothing. The match is case-insensitive.
 parseMaybeBool :: String -> Maybe Bool
 parseMaybeBool str = listToMaybe . catMaybes . map getResult $
     [ (True,  [ "true", "yes", "on" ])
