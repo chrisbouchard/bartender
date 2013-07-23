@@ -21,7 +21,10 @@ import Text.ParserCombinators.Parsec
 
 -- | Works like getOpt' from System.Console.GetOpt, except it parses a config
 -- file instead of a list of tokens. Short option names are ignored.
-getConfigOpt' :: ArgOrder a -> [OptDescr a] -> FilePath -> IO ([a], [String], [String], [String])
+getConfigOpt' :: ArgOrder a
+              -> [OptDescr a]
+              -> FilePath
+              -> IO ([a], [String], [String], [String])
 getConfigOpt' order descList path = do
     errorOrPairs <- parseFromFile file path
     return $ case errorOrPairs of
@@ -51,7 +54,8 @@ getConfigOpt' order descList path = do
 -- "false", "no", or "off", then the result is Just False. If the string is one
 -- of "true", "yes", or "on", then the result is Just True. Otherwise the
 -- result is Nothing.
-parseMaybeBool :: String -> Maybe Bool
+parseMaybeBool :: String
+               -> Maybe Bool
 parseMaybeBool str = listToMaybe . catMaybes . map getResult $
     [ (True,  [ "true", "yes", "on" ])
     , (False, [ "false", "no", "off" ])
