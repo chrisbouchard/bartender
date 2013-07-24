@@ -1,9 +1,11 @@
 module BarTender.Options
-    ( getConfigOpt
+    ( OptDescr (..)
+    , ArgDescr (..)
+    , FilePath
+    , getConfigOpt
     , getConfigOpt'
     , getEnvironOpt
     , getEnvironOpt'
-    , parseMaybeBool
     ) where
 
 import Control.Monad
@@ -21,8 +23,8 @@ import Text.ParserCombinators.Parsec
 
 import BarTender.Util
 
--- | Works like getOpt from "System.Console.GetOpt", except it parses a config
--- file instead of a list of tokens. Short option names are ignored.
+-- | Works like @getOpt@ from "System.Console.GetOpt", except it parses a
+-- config file instead of a list of tokens. Short option names are ignored.
 getConfigOpt :: [OptDescr a]
              -> FilePath
              -> IO ([a], [String], [String])
@@ -30,8 +32,8 @@ getConfigOpt descList path = do
     (x, y, z, _) <- getConfigOpt' descList path
     return (x, y, z)
 
--- | Works like getOpt' from "System.Console.GetOpt", except it parses a config
--- file instead of a list of tokens. Short option names are ignored.
+-- | Works like @getOpt'@ from "System.Console.GetOpt", except it parses a
+-- config file instead of a list of tokens. Short option names are ignored.
 getConfigOpt' :: [OptDescr a]
               -> FilePath
               -> IO ([a], [String], [String], [String])
@@ -43,10 +45,10 @@ getConfigOpt' descList path = do
     where
         fn :: (String, String) -> [String] -> [String]
         fn (key, value) list = (++ list) $ case getArgDescr key descList of
-            Just (NoArg _)    -> case parseMaybeBool value of
+            Just (NoArg _)    -> case smartReadBool value of
                                      Just True  -> ["--" ++ key]
                                      Just False -> ["--no-" ++ key]
-                                     Nothing    -> []
+                                     Nothing    -> ["--" ++ key]
             Just (OptArg _ _) -> if null value
                                      then ["--" ++ key]
                                      else ["--" ++ key, value]
@@ -58,7 +60,7 @@ getConfigOpt' descList path = do
             (Option shortLs longLs descr help) <- ls
             return $ ifJust (key `elem` longLs) descr
 
--- | Works like getOpt from "System.Console.GetOpt", except it searches the
+-- | Works like @getOpt@ from "System.Console.GetOpt", except it searches the
 -- environment for options instead of parsing a list of tokens. Short option
 -- names are ignored. A flag @--foo-bar@ will correspond to the environment
 -- variable @FOO_BAR@.
@@ -68,7 +70,7 @@ getEnvironOpt descList = do
     (x, y, z, _) <- getEnvironOpt' descList
     return (x, y, z)
 
--- | Works like getOpt' from "System.Console.GetOpt", except it searches the
+-- | Works like @getOpt'@ from "System.Console.GetOpt", except it searches the
 -- environment for options instead of parsing a list of tokens. Short option
 -- names are ignored. A flag @--foo-bar@ will correspond to the environment
 -- variable @FOO_BAR@.
@@ -99,23 +101,9 @@ getEnvironOpt' descList = do
         toEnvironKey :: String -> String
         toEnvironKey = map $ toUpper . (\c -> if c == '-' then '_' else c)
 
--- | Convert a string to a bool in an intelligent way: If the string is one of
--- @\"false\"@, @\"no\"@, or @\"off\"@, then the result is @Just False@. If the
--- string is one of @\"true\"@, @\"yes\"@, or @\"on\"@, then the result is
--- @Just True@. Otherwise the result is @Nothing@. The match is
--- case-insensitive.
-parseMaybeBool :: String -> Maybe Bool
-parseMaybeBool str = listToMaybe . catMaybes . map getResult $
-    [ (True,  [ "true", "yes", "on" ])
-    , (False, [ "false", "no", "off" ])
-    ]
-    where
-        getResult :: (Bool, [String]) -> Maybe Bool
-        getResult (bool, ls) = ifJust ((elem . map toLower) str ls) bool
-
 eol :: Parser ()
 eol = do
-    oneOf "\n\r"
+    try (void $ oneOf "\n\r") <|> eof
     return ()
     <?> "end of line"
 
@@ -130,7 +118,7 @@ item :: Parser (String, String)
 item = do
     key <- manyTill anyChar $ char '='
     skipMany space
-    value <- manyTill anyChar $ try eol <|> try comment <|> eof
+    value <- manyTill anyChar $ try eol <|> comment
     return (rstrip key, rstrip value)
     where
         rstrip :: String -> String
@@ -138,9 +126,12 @@ item = do
 
 line :: Parser (Maybe (String, String))
 line = do
+    mPair <- try (comment >> return Nothing) <|> (item >>= return . Just)
     skipMany space
-    try (comment >> return Nothing) <|> (item >>= return . Just)
+    return mPair
 
 file :: Parser [(String, String)]
-file = many line >>= return . catMaybes
+file = do
+    skipMany space
+    fmap catMaybes $ many line
 
