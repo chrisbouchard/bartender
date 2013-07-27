@@ -31,6 +31,9 @@ data Message = RAck Int Int Int   -- ^ Message for a client to begin sending
              | RInit String       -- ^ Message for the server to initialize a
                                   -- new client. Contains the client's name.
 
+             | RKill Int          -- ^ Message for the server to immediately
+                                  -- kill a client.
+
              | RMalformed String  -- ^ An improperly formed message. Contains
                                   -- the message contents.
 
@@ -50,6 +53,7 @@ instance Show Message where
     show (RAlive cid)               = spaced ["alive", show cid]
     show (RError message)           = spaced ["error", message]
     show (RInit name)               = spaced ["init", name]
+    show (RKill cid)                = spaced ["kill", show cid]
     show (RMalformed content)       = spaced ["[Malformed]", content]
     show RPoke                      = "poke"
     show (RUpdate cid content)      = spaced ["update", show cid, content]
@@ -64,6 +68,7 @@ messageCommand (RAck _ _ _)   = "ack"
 messageCommand (RAlive _)     = "alive"
 messageCommand (RError _)     = "error"
 messageCommand (RInit _)      = "init"
+messageCommand (RKill _)      = "kill"
 messageCommand (RMalformed _) = "[Malformed]"
 messageCommand RPoke          = "poke"
 messageCommand (RUpdate _ _)  = "update"
@@ -116,6 +121,10 @@ parseMessage str = fromMaybe (RMalformed str) $ parseBody cmd body
 
         parseBody "init" body = Just $ RInit name
             where (name : _) = splitTokens 1 body
+
+        parseBody "kill" body = RKill <$> cid
+            where (idStr : _) = splitTokens 1 body
+                  cid = maybeRead idStr
 
         parseBody "poke" body = Just RPoke
 

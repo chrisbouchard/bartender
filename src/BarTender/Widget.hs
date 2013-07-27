@@ -2,6 +2,7 @@ module BarTender.Widget
     ( Widget, wName, wId, wLock
     , LockVar
     , newWidget
+    , killWidget
     , updateWidget
     , widgetHasId
     , widgetIsDead
@@ -108,6 +109,21 @@ newWidget name timeout = do
         advanceDeath WDDying = WDDead
         advanceDeath WDDead  = WDDead
 
+-- | Move a widget directly into the dead state.
+killWidget :: Widget -- ^ The widget to kill
+           -> IO ()
+killWidget (Widget _ _ timer stateVar lockVar) = do
+    debugM "StatusBar.Widget.killWidget" $ "Enter"
+    -- No need for any more updates.
+    stopTimer timer
+    -- Move the widget directly to the dead state and mark it for update.
+    atomically $ do
+        state <- takeTMVar stateVar
+        putTMVar stateVar state {wsDeath = WDDead}
+        tryPutTMVar lockVar ()
+    debugM "StatusBar.Widget.killWidget" $ "Exit"
+
+-- | Stop a widget from dying, and possibly change its contents.
 updateWidget :: Widget       -- ^ The widget to touch
              -> Maybe String -- ^ The optional new content
              -> IO ()
@@ -137,7 +153,7 @@ updateWidget (Widget _ _ timer stateVar lockVar) mContent = do
             | otherwise               = state {wsDeath = WDAlive}
 
 widgetHasId :: Int -> Widget -> Bool
-widgetHasId qWid (Widget _ wid _ _ _) = qWid == wid
+widgetHasId = flip $ (==) . wId
 
 -- | Show a widget by just showing its content
 widgetStatus :: Widget -> STM (Maybe String)

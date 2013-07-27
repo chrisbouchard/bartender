@@ -169,6 +169,24 @@ barStartup options = do
                     debugM "StatusBar.Bar.updateBar" $ "Exit"
                     return . Just $ badClientMessage cid
 
+        updateBar (RKill cid) = do
+            debugM "StatusBar.Bar.updateBar" $ "Enter RKill"
+            mWidget <- atomically $ do
+                widgetList <- readTMVar widgetListVar
+                return $ find (widgetHasId cid) widgetList
+            debugM "StatusBar.Bar.updateBar" $ "mWidget: " ++ show mWidget
+            case mWidget of
+                (Just widget) -> do
+                    killWidget widget
+                    debugM "StatusBar.Bar.updateBar" $ "Killed widget"
+                    debugM "StatusBar.Bar.updateBar" $ "Exit"
+                    return Nothing
+                Nothing       -> do
+                    warningM "StatusBar.Bar.updateBar" $
+                        "Request for non-existent widget ID " ++ show cid
+                    debugM "StatusBar.Bar.updateBar" $ "Exit"
+                    return . Just $ badClientMessage cid
+
         updateBar message = do
             debugM "StatusBar.Bar.updateBar" $ "Enter other"
             return . Just $ notImplementedMessage message
