@@ -1,6 +1,9 @@
 module BarTender.Options
     ( module System.Console.GetOpt
     , FilePath
+    , Bound (..)
+    , inBound
+    , outOfBound
     , completeOption
     , getConfigOpt
     , getEnvironOpt
@@ -22,6 +25,28 @@ import Text.ParserCombinators.Parsec
 
 import BarTender.Util
 
+data Bound a = AtLeast a
+             | AtMost a
+             | Between a a
+             | Exactly a
+             | Unbounded
+    deriving Eq
+
+-- | Determine if a value is inside of a bound, inclusively.
+inBound :: Ord a => a -> Bound a -> Bool
+inBound x (AtLeast y)   = y <= x
+inBound x (AtMost y)    = x <= y
+inBound x (Between y z) = y <= x && x <= z
+inBound x (Exactly y)   = x == y
+inBound x Unbounded     = True
+
+-- | Determine if a value is outside of a bound, where inclusion is inclusive.
+outOfBound :: Ord a => a -> Bound a -> Bool
+outOfBound = ((.) . (.)) not inBound
+
+
+-- | Complement a flag with the corresponding "--no-" flag. The base flag
+-- enables a feature, and its inverse disables the feature.
 completeOption :: OptDescr (Bool -> a) -> [OptDescr a]
 completeOption (Option shortLs longLs descr help) = case descr of
         NoArg fn    -> [ Option shortLs longLs (NoArg $ fn True) help
@@ -122,11 +147,15 @@ getEnvironOpt descList = do
 
 -- | Use the results of a get*Opt function to generate either a result option
 -- value or an error message.
-handleOpt :: ([a -> Either (Maybe String) a], [String], [String])
-         -> a
-         -> (Either (Maybe String) a, [String])
-handleOpt (fnLs, nonOptLs, errorLs) initOpt = (result, nonOptLs)
+handleOpt :: Bound Int
+          -> a
+          -> ([a -> Either String a], [String], [String])
+          -> Either String (a, [String])
+handleOpt bound initOpt (fnLs, nonOptLs, errorLs) = result >>= handleNonOpts
     where
-        result = foldr (=<<) (Right initOpt) $
-            map (const . Left . Just) errorLs ++ fnLs
+        result = foldr (=<<) (Right initOpt) $ map (const . Left) errorLs ++ fnLs
+
+        handleNonOpts opt = if inBound (length nonOptLs) bound
+            then Right $ (opt, nonOptLs)
+            else Left $ "incorrect number of positional arguments"
 

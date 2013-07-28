@@ -1,12 +1,17 @@
 module Main (main) where
 
+import Prelude hiding ((.), id)
+
 import Control.Applicative
+import Control.Category
 import Control.Monad
 import Control.Monad.IO.Class
 
+import Data.Lens.Common
+import Data.Lens.Template
+
 import GHC.IO (evaluate)
 
-import System.Console.CmdArgs
 import System.Environment
 import System.Exit
 import System.IO
@@ -16,51 +21,62 @@ import System.Process
 
 import BarTender.Client
 import BarTender.Dzen
+import BarTender.Options
 import BarTender.Timer
+import BarTender.Util
 
 -- Options to this program, gotten from the command line, a config file, or
 -- something like that
 data Options = Options
-    { delay   :: Int    -- The time between updates (in seconds)
-    , errexit :: Bool   -- Exit if the command has non-zero exit
-    , host    :: String -- The server host
-    , name_   :: String -- The client name
-    , port    :: Int    -- The server port
-    , retries :: Int    -- The number of times to retry connecting
-    , timeout :: Int    -- The number of seconds to wait for server response
-    , command :: String -- The command to run
+    { _delay    :: Int               -- The time between updates (in seconds)
+    , _errexit  :: Bool              -- Exit if the command has non-zero exit
+    , _name     :: String            -- The client name
+    , _command  :: String            -- The command to run
+    , _help     :: Bool              -- Whether the user wants the help message
+    , _connOpts :: ConnectionOptions -- The client connection options
     }
-    deriving (Show, Data, Typeable)
+    deriving Show
 
--- Set default options and annotations
+$( makeLenses [ ''Options ] )
+
 defaultOptions :: Options
 defaultOptions = Options
-    { delay = 10
-        &= help "The time between updates"
-    , errexit = False
-        &= help "Exit if the command has non-zero exit"
-    , name_ = "Test"
-        &= help "Specify a client name"
-    , port = 9999
-        &= help "The server port"
-    , retries = 0
-        &= help "Number of times to retry connecting"
-    , timeout = 30
-        &= help "Number of seconds to wait for server response"
-    , host = def &= argPos 0
-    , command = def &= argPos 1
+    { _name = "WatchClient"
+    , _delay = 10
+    , _errexit = False
+    , _command = ""
+    , _help = False
+    , _connOpts = defaultConnectionOptions
     }
-    &= program "WatchClient"
-    &= summary "WatchClient v0.1.0"
-    &= help "Watch a command and send its output to a StatusBar server."
 
-connectionOptions :: Options -> ConnectionOptions
-connectionOptions options = ConnectionOptions
-    { connectHost    = host options
-    , connectPort    = show $ port options
-    , connectRetries = retries options
-    , connectTimeout = timeout options
-    }
+optionDescriptions :: [OptDescr (Options -> Either String Options)]
+optionDescriptions = (++)
+    [ Option ['p'] ["port"]
+        (flip ReqArg "PORT" $ \str -> Right . (connectPort . connOpts ^= str))
+        "The server port"
+    , Option ['r'] ["retries"]
+        (flip ReqArg "N" $ \str -> case maybeRead str of
+            Just n  -> Right . (connectRetries . connOpts ^= n)
+            Nothing -> const . Left $ "Invalid number '" ++ str ++ "'")
+        "Number of times to retry connecting"
+    , Option ['t'] ["timeout"]
+        (flip ReqArg "N" $ \str -> case maybeRead str of
+            Just n  -> Right . (connectTimeout . connOpts ^= n)
+            Nothing -> const . Left $ "Invalid number '" ++ str ++ "'")
+        "Number of seconds to wait for server response"
+    , Option ['d'] ["delay"]
+        (flip ReqArg "N" $ \str -> case maybeRead str of
+            Just n  -> Right . (delay ^= n)
+            Nothing -> const . Left $ "Invalid number '" ++ str ++ "'")
+        "Number of seconds to wait between updates"
+    , Option ['h', '?'] ["help"]
+        (NoArg $ Right . (help ^= True))
+        "Display this help message"
+    ] $
+    [ Option ['e'] ["errexit"]
+        (NoArg $ \b -> Right . (errexit ^= b))
+        "Exit if the command has non-zero exit"
+    ] >>= completeOption
 
 main :: IO ()
 main = do
@@ -70,33 +86,49 @@ main = do
 
     debugM "Main.main" $ "Enter"
 
-    options <- cmdArgs defaultOptions
+    errorOrOptions <- handleOpt (Exactly 2) defaultOptions <$>
+        getOpt RequireOrder optionDescriptions <$> getArgs
 
-    runClient (name_ options) $ do
-        connectClient $ connectionOptions options
-        updateFromCommand options
-        runOnTimer (delay options) $ updateFromCommand options
+    case errorOrOptions of
+        Left error -> putStrLn error >> putStrLn "" >> printHelpMessage
+        Right (opts, posArgs) -> let options = handlePositional posArgs opts in
+            if options ^. help
+                then printHelpMessage
+                else runClient (options ^. name) $ do
+                    connectClient $ options ^. connOpts
+                    updateFromCommand options
+                    runOnTimer (options ^. delay) $ updateFromCommand options
 
     debugM "Main.main" $ "Exit"
+    where
+        handlePositional :: [String] -> Options -> Options
+        handlePositional posArgs = foldr (.) id
+            [ connectHost . connOpts ^= posArgs !! 0
+            , command ^= posArgs !! 1
+            ]
 
-updateFromCommand :: MonadIO m => Options -> BarClient m Bool
-updateFromCommand options = do
-    liftIO . debugM "Main.updateFromCommand" $ "Enter"
-    liftIO . debugM "Main.updateFromCommand" $ "Running: " ++ command options
-    (cmdIn, cmdOut, _, cmdHandle) <- liftIO . runInteractiveCommand $
-        command options
-    liftIO . debugM "Main.updateFromCommand" $ "Closing process's stdin"
-    -- liftIO $ hClose cmdIn
-    liftIO . debugM "Main.updateFromCommand" $ "Getting output"
-    output <- liftIO $ hGetContents cmdOut >>= evaluate
-    liftIO . debugM "Main.updateFromCommand" $ "Output: " ++ output
-    liftIO . debugM "Main.updateFromCommand" $ "Sending output to server"
-    updateClient output
-    liftIO . debugM "Main.updateFromCommand" $ "Waiting for exit status"
-    code <- liftIO $ waitForProcess cmdHandle
-    value <- return $ case code of
-        ExitSuccess   -> True
-        ExitFailure _ -> not $ errexit options
-    liftIO . debugM "Main.updateFromCommand" $ "Exit with: " ++ show value
-    return value
+        printHelpMessage :: IO ()
+        printHelpMessage = do
+            putStr $ usageInfo "WatchClient" optionDescriptions
+
+        updateFromCommand :: MonadIO m => Options -> BarClient m Bool
+        updateFromCommand options = do
+            liftIO . debugM "Main.updateFromCommand" $ "Enter"
+            liftIO . debugM "Main.updateFromCommand" $ "Running: " ++ (options ^. command)
+            (cmdIn, cmdOut, _, cmdHandle) <- liftIO . runInteractiveCommand $
+                options ^. command
+            liftIO . debugM "Main.updateFromCommand" $ "Closing process's stdin"
+            -- liftIO $ hClose cmdIn
+            liftIO . debugM "Main.updateFromCommand" $ "Getting output"
+            output <- liftIO $ hGetContents cmdOut >>= evaluate
+            liftIO . debugM "Main.updateFromCommand" $ "Output: " ++ output
+            liftIO . debugM "Main.updateFromCommand" $ "Sending output to server"
+            updateClient output
+            liftIO . debugM "Main.updateFromCommand" $ "Waiting for exit status"
+            code <- liftIO $ waitForProcess cmdHandle
+            value <- return $ case code of
+                ExitSuccess   -> True
+                ExitFailure _ -> not $ options ^. errexit
+            liftIO . debugM "Main.updateFromCommand" $ "Exit with: " ++ show value
+            return value
 

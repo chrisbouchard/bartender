@@ -7,6 +7,12 @@ module BarTender.Client
     , runClient
     , touchClient
     , updateClient
+
+    -- The following are from Template Haskell
+    , connectHost
+    , connectPort
+    , connectRetries
+    , connectTimeout
     ) where
 
 import Control.Applicative
@@ -16,6 +22,9 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.State
 import Control.Monad.STM
+
+import Data.Lens.Common
+import Data.Lens.Template
 
 import Network.Socket
 
@@ -27,38 +36,40 @@ import System.Timeout
 import BarTender.Message
 
 data BarServerInfo = BarServerInfo
-    { serverSock    :: Socket
-    , serverCid     :: Int
-    , serverTimeout :: Int
-    , serverVersion :: Int
+    { _serverSock    :: Socket
+    , _serverCid     :: Int
+    , _serverTimeout :: Int
+    , _serverVersion :: Int
     }
     deriving Show
 
 data BarClientInfo = BarClientInfo
-    { clientName       :: String
-    , clientServer     :: Maybe BarServerInfo
-    , clientConnection :: Maybe ConnectionOptions
+    { _clientName       :: String
+    , _clientServer     :: Maybe BarServerInfo
+    , _clientConnection :: Maybe ConnectionOptions
     }
     deriving Show
 
 type BarClient m a = StateT BarClientInfo m a
 
 data ConnectionOptions = ConnectionOptions
-    { connectHost    :: String
-    , connectPort    :: String
-    , connectRetries :: Int
-    , connectTimeout :: Int
+    { _connectHost    :: String
+    , _connectPort    :: String
+    , _connectRetries :: Int
+    , _connectTimeout :: Int
     }
     deriving Show
 
 -- | Default options for connecting to a server
 defaultConnectionOptions :: ConnectionOptions
 defaultConnectionOptions = ConnectionOptions
-    { connectHost    = "localhost"
-    , connectPort    = "9999"
-    , connectRetries = 3
-    , connectTimeout = 60
+    { _connectHost    = "localhost"
+    , _connectPort    = "9999"
+    , _connectRetries = 3
+    , _connectTimeout = 60
     }
+
+$( makeLenses [''BarServerInfo, ''BarClientInfo, ''ConnectionOptions] )
 
 -- | Run a client monad
 runClient :: MonadIO m
@@ -72,13 +83,13 @@ connectClient :: MonadIO m
               => ConnectionOptions
               -> BarClient m ()
 connectClient options = do
-    BarClientInfo { clientName = name } <- get
+    barClientInfo <- get
 
     mServerInfo <- liftIO . withSocketsDo $ do
         debugM "ServerBar.Client.connectBar" $ "Enter"
         serverinfo <- head <$> getAddrInfo
             (Just defaultHints { addrFlags = [AI_PASSIVE] , addrSocketType = Datagram })
-            (Just $ connectHost options) (Just $ connectPort options)
+            (Just $ options ^. connectHost) (Just $ options ^. connectPort)
         debugM "ServerBar.Client.connectBar" $ "serverinfo: " ++ show serverinfo
 
         let serveraddr = addrAddress serverinfo
@@ -92,9 +103,9 @@ connectClient options = do
 
         debugM "ServerBar.Client.connectBar" $ "Connected socket"
 
-        mMessage <- attempt (connectTimeout options) (connectRetries options) $ do
+        mMessage <- attempt (options ^. connectTimeout) (options ^. connectRetries) $ do
             debugM "ServerBar.Client.connectBar" $ "Sending init message"
-            send sock . show $ RInit name
+            send sock . show . RInit $ barClientInfo ^. clientName
             message <- parseMessage <$> recv sock bufferSize
             debugM "ServerBar.Client.connectBar" $ "Received from server: " ++ (show message)
             return message
@@ -103,7 +114,7 @@ connectClient options = do
             Nothing      -> return Nothing
             Just message -> handleAck sock message
 
-    modify $ \state -> state { clientServer = mServerInfo }
+    modify $ clientServer ^= mServerInfo
 
     where
         bufferSize = 1024
@@ -123,10 +134,10 @@ connectClient options = do
 
         handleAck :: Socket -> Message -> IO (Maybe BarServerInfo)
         handleAck sock (RAck cid timeout version) = return . Just $
-            BarServerInfo { serverSock    = sock
-                          , serverCid     = cid
-                          , serverTimeout = timeout
-                          , serverVersion = version
+            BarServerInfo { _serverSock    = sock
+                          , _serverCid     = cid
+                          , _serverTimeout = timeout
+                          , _serverVersion = version
                           }
         handleAck sock message = do
             shutdown sock ShutdownBoth
@@ -138,24 +149,24 @@ connectClient options = do
 touchClient :: MonadIO m
             => BarClient m ()
 touchClient = do
-    BarClientInfo { clientName = name, clientServer = mServerInfo } <- get
-    liftIO . withSocketsDo $ case mServerInfo of
+    barClientInfo <- get
+    liftIO . withSocketsDo $ case barClientInfo ^. clientServer of
         Nothing -> do
             errorM "ServerBar.Client.sendUpdate" $ "Connection is closed"
         (Just serverInfo) -> do
             -- TODO: We should probably check this return value
-            void $ send (serverSock serverInfo) . show $ RAlive (serverCid serverInfo)
+            void $ send (serverInfo ^. serverSock) . show $ RAlive (serverInfo ^. serverCid)
 
 -- | Send an update to the server
 updateClient :: MonadIO m
              => String    -- ^ The content of the update
              -> BarClient m ()
 updateClient content = do
-    BarClientInfo { clientName = name, clientServer = mServerInfo } <- get
-    liftIO . withSocketsDo $ case mServerInfo of
+    barClientInfo <- get
+    liftIO . withSocketsDo $ case barClientInfo ^. clientServer of
         Nothing -> do
             errorM "ServerBar.Client.sendUpdate" $ "Connection is closed"
         (Just serverInfo) -> do
             -- TODO: We should probably check this return value
-            void $ send (serverSock serverInfo) . show $ RUpdate (serverCid serverInfo) content
+            void $ send (serverInfo ^. serverSock) . show $ RUpdate (serverInfo ^. serverCid) content
 

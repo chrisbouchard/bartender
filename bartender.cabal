@@ -13,7 +13,9 @@ cabal-version:       >=1.8
 
 library
   hs-source-dirs: src
-  extensions: ScopedTypeVariables
+  extensions:
+    ScopedTypeVariables,
+    TemplateHaskell
   exposed-modules:
     BarTender.Bar,
     BarTender.Client,
@@ -29,6 +31,8 @@ library
     base ==4.6.*,
     ConfigFile ==1.1.*,
     containers ==0.5.*,
+    data-lens ==2.10.*,
+    data-lens-template ==2.1.*,
     hslogger ==1.2.*,
     mtl ==2.1.*,
     network ==2.4.*,
@@ -43,22 +47,29 @@ executable bartender
   main-is: Main.hs
   hs-source-dirs: bartender-server
   ghc-options: -threaded -with-rtsopts=-N
-  extensions: DeriveDataTypeable
+  extensions:
+    DeriveDataTypeable,
+    TemplateHaskell
   build-depends:
     bartender,
     base ==4.6.*,
     cmdargs ==0.10.*,
+    data-lens ==2.10.*,
+    data-lens-template ==2.1.*,
     hslogger ==1.2.*
 
 executable TestClient
   main-is: Main.hs
   hs-source-dirs: clients/TestClient
   ghc-options: -threaded -with-rtsopts=-N
-  extensions: DeriveDataTypeable
+  extensions:
+    DeriveDataTypeable,
+    TemplateHaskell
   build-depends:
     bartender,
     base ==4.6.*,
-    cmdargs ==0.10.*,
+    data-lens ==2.10.*,
+    data-lens-template ==2.1.*,
     hslogger ==1.2.*,
     old-locale ==1.0.*,
     time ==1.4.*,
@@ -68,24 +79,29 @@ executable FileClient
   main-is: Main.hs
   hs-source-dirs: clients/FileClient
   ghc-options: -threaded -with-rtsopts=-N
-  extensions: DeriveDataTypeable
+  extensions:
+    DeriveDataTypeable,
+    TemplateHaskell
   build-depends:
     bartender,
     base ==4.6.*,
-    cmdargs ==0.10.*,
+    data-lens ==2.10.*,
+    data-lens-template ==2.1.*,
     hslogger ==1.2.*,
-    process ==1.1.*,
     transformers ==0.3.*
 
 executable WatchClient
   main-is: Main.hs
   hs-source-dirs: clients/WatchClient
   ghc-options: -threaded -with-rtsopts=-N
-  extensions: DeriveDataTypeable
+  extensions:
+    DeriveDataTypeable,
+    TemplateHaskell
   build-depends:
     bartender,
     base ==4.6.*,
-    cmdargs ==0.10.*,
+    data-lens ==2.10.*,
+    data-lens-template ==2.1.*,
     hslogger ==1.2.*,
     process ==1.1.*,
     transformers ==0.3.*

@@ -1,9 +1,14 @@
 module Main (main) where
 
+import Prelude hiding ((.), id)
+
 import Control.Applicative
+import Control.Category
 import Control.Monad
 import Control.Monad.IO.Class
 
+import Data.Lens.Common
+import Data.Lens.Template
 import Data.Time.Format
 import Data.Time.LocalTime
 
@@ -23,54 +28,38 @@ import BarTender.Util
 -- Options to this program, gotten from the command line, a config file, or
 -- something like that
 data Options = Options
-    { name     :: String            -- The client name
-      help     :: Bool              -- Whether the user wants the help message
-      connOpts :: ConnectionOptions -- The client connection options
+    { _name     :: String            -- The client name
+    , _help     :: Bool              -- Whether the user wants the help message
+    , _connOpts :: ConnectionOptions -- The client connection options
     }
-    deriving (Show)
+    deriving Show
+
+$( makeLenses [ ''Options ] )
 
 defaultOptions :: Options
 defaultOptions = Options
-    { name = "Test"
-      help = False
-    , connOpts = defaultConnectionOptions
+    { _name = "TestClient"
+    , _help = False
+    , _connOpts = defaultConnectionOptions
     }
 
--- Set default options and annotations
--- options :: Options
--- options = Options
---     { port = 9999
---         &= help "The server port"
---     , name_ = "Test"
---         &= help "Specify a client name"
---     , retries = 0
---         &= help "Number of times to retry connecting"
---     , timeout = 30
---         &= help "Number of seconds to wait for server response"
---     , host = def &= argPos 0 &= opt "localhost"
---     }
---     &= program "TestClient"
---     &= summary "TestClient v0.1.0"
---     &= help "A test client to connect to the StatusBar server"
-
-optionDescriptions :: [OptDescr (Options -> Options)
+optionDescriptions :: [OptDescr (Options -> Either String Options)]
 optionDescriptions =
     [ Option ['p'] ["port"]
-        (ReqArg $ \str opts@(Options {connOpts = cOpts}) ->
-            opts { connOpts = cOpts { connectPort = str } }
+        (flip ReqArg "PORT" $ \str -> Right . (connectPort . connOpts ^= str))
         "The server port"
     , Option ['r'] ["retries"]
-        (ReqArg $ \str opts@(Options {connOpts = cOpts}) ->
-            opts { connOpts = cOpts { connectRetries = str } }
+        (flip ReqArg "N" $ \str -> case maybeRead str of
+            Just n  -> Right . (connectRetries . connOpts ^= n)
+            Nothing -> const . Left $ "Invalid number '" ++ str ++ "'")
         "Number of times to retry connecting"
     , Option ['t'] ["timeout"]
-        (ReqArg $ \str opts@(Options {connOpts = cOpts}) ->
-            case maybeRead str of
-                Just n  -> Right $ opts { connOpts = cOpts { connectTimeout = n } }
-                Nothing -> Left $ "Invalid timeout '" ++ str ++ "'"
+        (flip ReqArg "N" $ \str -> case maybeRead str of
+            Just n  -> Right . (connectTimeout . connOpts ^= n)
+            Nothing -> const . Left $ "Invalid number '" ++ str ++ "'")
         "Number of seconds to wait for server response"
     , Option ['h', '?'] ["help"]
-        (NoArg $ \opts -> opts { help = True })
+        (NoArg $ Right . (help ^= True))
         "Display this help message"
     ]
 
@@ -82,13 +71,19 @@ main = do
 
     debugM "Main.main" $ "Enter"
 
-    errorOrOptions <- cmdArgs options
+    errorOrOptions <- handleOpt (AtMost 1) defaultOptions <$>
+        getOpt RequireOrder optionDescriptions <$> getArgs
 
-    runClient (name_ options) $ do
-        connectClient $ connectionOptions options
-        runOnTimer delay $ do
-            liftIO getTime >>= updateClient
-            return True
+    case errorOrOptions of
+        Left error -> putStrLn error >> putStrLn "" >> printHelpMessage
+        Right (opts, posArgs) -> let options = handlePositional posArgs opts in
+            if options ^. help
+                then printHelpMessage
+                else runClient (options ^. name) $ do
+                    connectClient $ options ^. connOpts
+                    runOnTimer delay $ do
+                        liftIO getTime >>= updateClient
+                        return True
 
     debugM "Main.main" $ "Exit"
 
@@ -98,11 +93,10 @@ main = do
         getTime :: IO String
         getTime = formatTime defaultTimeLocale "%a %d %b %Y %R %Z" <$> getZonedTime
 
-        connectionOptions :: Options -> ConnectionOptions
-        connectionOptions options = ConnectionOptions
-            { connectHost    = host options
-            , connectPort    = show $ port options
-            , connectRetries = retries options
-            , connectTimeout = timeout options
-            }
+        handlePositional :: [String] -> Options -> Options
+        handlePositional posArgs = (connectHost . connOpts ^= posArgs !! 0)
+
+        printHelpMessage :: IO ()
+        printHelpMessage = do
+            putStr $ usageInfo "TestClient" optionDescriptions
 
