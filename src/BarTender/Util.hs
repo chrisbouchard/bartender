@@ -44,6 +44,10 @@ smartReadBool str = listToMaybe . catMaybes . map getResult $
         getResult :: (Bool, [String]) -> Maybe Bool
         getResult (bool, ls) = ifJust ((elem . map toLower) str ls) bool
 
+maybeToEither :: Maybe a -> b -> Either b a
+maybeToEither Nothing  x = Left x
+maybeToEither (Just x) _ = Right x
+
 -- | Join a list of strings by spaces
 spaced :: [String] -> String
 spaced = intercalate " "

@@ -69,6 +69,9 @@ optionDescriptions = (++)
             Just n  -> Right . (delay ^= n)
             Nothing -> const . Left $ "Invalid number '" ++ str ++ "'")
         "Number of seconds to wait between updates"
+    , Option ['n'] ["name"]
+        (flip ReqArg "NAME" $ \str -> Right . (name ^= str))
+        "The name the client reports to the server"
     , Option ['h', '?'] ["help"]
         (NoArg $ Right . (help ^= True))
         "Display this help message"
