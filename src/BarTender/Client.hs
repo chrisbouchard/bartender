@@ -1,7 +1,7 @@
 -- | A client for the status bar server
 module BarTender.Client
     ( BarClient
-    , ConnectionOptions(..)
+    , ConnectionOptions (..)
     , defaultConnectionOptions
     , connectClient
     , runClient

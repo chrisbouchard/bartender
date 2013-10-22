@@ -1,5 +1,5 @@
 module BarTender.Message
-    ( Message(..)
+    ( Message (..)
     , MessageHandler
     , badClientMessage
     , messageCommand

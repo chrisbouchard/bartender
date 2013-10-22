@@ -1,6 +1,6 @@
 -- | A server to listen for and handle requests to update the status bar
 module BarTender.Server
-    ( ServerOptions(..)
+    ( ServerOptions (..)
     , defaultServerOptions
     , serveBar
     ) where

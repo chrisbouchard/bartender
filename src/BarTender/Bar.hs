@@ -1,5 +1,5 @@
 module BarTender.Bar
-    ( BarOptions(..)
+    ( BarOptions (..)
     , defaultBarOptions
     , barStartup
     , barMessageHandler
