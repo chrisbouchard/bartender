@@ -20,67 +20,121 @@ import Data.Maybe
 
 import BarTender.Util
 
-data OptionsDescr f a = PositionalDescr [Flag f a] [Positional a] (Maybe (Positional a))
-                      | SubcommandDescr [Flag f a] [Subcommand f a]
+-- | A description of options for `argParse`.
+type ArgOptionsDescr a = OptionsDescr ConvertNoArg a
+
+-- | A description of a command line.
+data OptionsDescr f a
+    -- | A description of a command line with positional arguments, with the
+    -- flags it accepts, the positional arguments it accepts, and an optional
+    -- final positional argument for extra trailing tokens.
+    = PositionalDescr [Flag f a] [Positional a] (Maybe (Positional a))
+
+    -- | A description of a command line with a subcommand, with the flags it
+    -- accepts and the subcommands it accepts.
+    | SubcommandDescr [Flag f a] [Subcommand f a]
+
     deriving Functor
 
+-- | A description of a flag with a list of short flag names, long flag names,
+-- a description of the argument, and a documentation string.
 data Flag f a = Flag [Char] [String] (Argument f a) String
     deriving Functor
 
+-- | A description of a positional argument, with a function translating the
+-- token into a value and a string name for the argument.
 data Positional a = Positional (String -> a) String
     deriving Functor
 
-data Subcommand f a = Subcommand String String (OptionsDescr f a)
+-- | A description of a subcommand, with a string for its name, a documentation
+-- string, and a description of the subsequent command line.
+data Subcommand f a = Subcommand [String] String (OptionsDescr f a)
     deriving Functor
 
-data Argument f a = NoArg (f a)
-                  | ReqArg (String -> a) String
-                  | OptArg (Maybe String -> a) String
+-- | A description of the argument of a flag. The first argument is a functor
+-- type used to generate additional flags for flags with no arguments via the
+-- `ConvertNoArg` functor.
+data Argument f a
+    -- | This flag requires no argument.
+    = NoArg (f a)
+
+    -- | This flag requires a single argument.
+    | ReqArg (String -> a) String
+
+    -- | This flag requires zero or one arguments.
+    | OptArg (Maybe String -> a) String
+
     deriving Functor
 
-type ArgOptionsDescr a = OptionsDescr ConvertNoArg a
+-- | Functor describing how to generate additional flags for flags with no
+-- arguments.
+data ConvertNoArg a
+    -- | Leave this flag alone
+    = AsIs a
 
-data ConvertNoArg a = AsIs a
-                    | WithInverse (Bool -> a)
-                    | AsOptArg (Bool -> a)
+    -- | Create a second flag to act as the inverse of this flag.
+    | WithInverse (Bool -> a)
+
+    -- | Convert this flag into one accepting an optional boolean argument.
+    | AsOptArg (Bool -> a)
     deriving Functor
 
-data TaggedToken = ShortFlaglike String
-                    | LongFlaglike String
-                    | NotFlaglike String
-    deriving Show
+-- | A token from the input tagged with how "flaglike" it is.
+data TaggedToken
+    -- | This token could act as a short flag
+    = ShortFlaglike String
 
+    -- | This token could act as a long flag
+    | LongFlaglike String
+
+    -- | This token cannot act as a flag
+    | NotFlaglike String
+
+-- | Settings for the `argParse` function.
 data ArgParseSettings = ArgParseSettings
-    { argShortOpt    :: String
-    , argLongOpt     :: String
-    , argLongSep     :: Char
-    , argEndFlags    :: String
-    , argSplitLong   :: Bool
+    { argShortOpt    :: String -- ^ The prefix for a short flag
+    , argLongOpt     :: String -- ^ The prefix for a long flag
+    , argLongSep     :: String -- ^ The character that separates a long flag
+                               --   from its argument
+    , argEndFlags    :: String -- ^ The token that marks all subsequent tokens
+                               --   as not flaglike
+    , argInverse     :: String -- ^ The prefix for flags that are inverses of
+                               --   other flags
+    , argSplitShort  :: Bool   -- ^ Whether groupings of short pairs should be
+                               --   split (i.e., -ofile to -o file and -abc to
+                               --   -a -b -c)
+    , argSplitLong   :: Bool   -- ^ Whether long flags with an argument should
+                               --   be split (i.e., --flag=value to --flag
+                               --   value)
     }
     deriving Show
 
+-- | Some sane default settings for argParse. These settings reflect the
+-- "expected behavior" of command line arguments for GNU-style programs.
 defaultArgParseSettings = ArgParseSettings
     { argShortOpt    = "-"
     , argLongOpt     = "--"
-    , argLongSep     = '='
+    , argLongSep     = "="
     , argEndFlags    = "--"
+    , argInverse     = "no-"
+    , argSplitShort  = True
     , argSplitLong   = True
     }
 
 
-argParse :: ArgParseSettings
-         -> ArgOptionsDescr a
-         -> [String]
+-- | Parse a list of input tokens using a description of command line
+-- arguments. Returns either an error string or a list of the values produced
+-- during the parse.
+argParse :: ArgParseSettings  -- ^ The settings for this parse
+         -> ArgOptionsDescr a -- ^ A description of the command line arguments
+         -> [String]          -- ^ The input tokens
          -> Either String [a]
 argParse settings descr args =
     sequence $ parseDescr finalDescr Nothing finalToks
     where
         finalDescr = convertOptionsDescr $ fmap Right descr
 
-        finalToks = tagFlags args >>=
-            if argSplitLong settings
-                then splitAtEquals
-                else \x -> [x]
+        finalToks = tagFlags args -- >>= splitFlag
 
 
         -- Tag each token in the list with its "flagginess", i.e., whether it
@@ -94,31 +148,34 @@ argParse settings descr args =
             | otherwise                     = tagType str : tagFlags remArgs
             where
                 tagType
-                    | (argLongOpt settings `isPrefixOf` str) =
+                    | (argLongOpt settings `isPrefixOf` str) &&
+                      length str > length (argLongOpt settings) =
                         LongFlaglike . drop (length $ argLongOpt settings)
-                    | (argShortOpt settings `isPrefixOf` str) =
+                    | (argShortOpt settings `isPrefixOf` str) &&
+                      length str > length (argShortOpt settings) =
                         ShortFlaglike . drop (length $ argShortOpt settings)
                     | otherwise =
                         NotFlaglike
 
-        -- Return the name of the string value of the token
-        untag (ShortFlaglike str) = str
-        untag (LongFlaglike str) = str
-        untag (NotFlaglike str) = str
+        -- Return the string value of the token
+        value (ShortFlaglike str) = str
+        value (LongFlaglike str) = str
+        value (NotFlaglike str) = str
 
         -- Return the flag that generated the given tagged token
-        tagToFlag (ShortFlaglike str) = argShortOpt settings ++ str
-        tagToFlag (LongFlaglike str) = argLongOpt settings ++ str
+        untag (ShortFlaglike str) = argShortOpt settings ++ str
+        untag (LongFlaglike str) = argLongOpt settings ++ str
+        untag (NotFlaglike str) = str
 
 
-        -- Break a long flag with an equal sign into two tokens: the flag and a
-        -- non-flaglike token containing the argument
-        splitAtEquals (LongFlaglike str) = [ LongFlaglike prefix
-                                           , NotFlaglike $ drop 1 suffix
-                                           ]
-            where (prefix, suffix) = break (== argLongSep settings) str
+        -- -- Break a long flag with an equal sign into two tokens: the flag and a
+        -- -- non-flaglike token containing the argument
+        -- splitFlag (LongFlaglike str) = [ LongFlaglike prefix ] ++
+        --                                (maybeToList . liftM2 ifJust null NotFlaglike $ suffix)
+        --     where (prefix, suffixWithSep) = break (== argLongSep settings) str
+        --           suffix = drop 1 suffixWithSep
 
-        splitAtEquals tok                = [tok]
+        -- splitFlag tok                = [tok]
 
 
         --- *** Multi-part definition of parseDescr ***
@@ -211,38 +268,59 @@ argParse settings descr args =
         -- Positional description:
         -- The case where we're processing a flaglike token
         parseDescr descr@(PositionalDescr flags _ _) Nothing (tok:remToks) =
-            case findFlagArg flags tok of
+            case findFlagArgTok flags tok of
                 Left error -> [Left error]
-                Right arg  -> parseDescr descr (Just arg) remToks
+                Right (arg, newToks)  -> parseDescr descr (Just arg)
+                                                    (newToks ++ remToks)
 
         -- Subcommand description:
         -- The case where we're processing a flaglike token
         parseDescr descr@(SubcommandDescr flags _) Nothing (tok:remToks) =
-            case findFlagArg flags tok of
+            case findFlagArgTok flags tok of
                 Left error -> [Left error]
-                Right arg  -> parseDescr descr (Just arg) remToks
+                Right (arg, newToks)  -> parseDescr descr (Just arg)
+                                                    (newToks ++ remToks)
 
         --- *** End definition of parseDescr ***
 
 
-        -- Find a flag and its argument by its tag and name
-        -- TODO: Right now we discard short flags with multi-character names.
-        -- It might be better if we split them into multiple flags or a flag
-        -- with an option. I.e.,
-        --     -ofile == -o file
-        -- or
-        --     -abc == -a -b -c
-        -- We could even do both in an intelligent way: Use the first if the
-        -- flag expects an argument and the second otherwise.
-        findFlagArg flags tok =
-            case find (flagMatch tok) flags of
-                Nothing                 -> Left $ "Unknown flag " ++ tagToFlag tok
-                (Just (Flag _ _ arg _)) -> Right $ arg
+        -- Find a flag and its argument by its tag and name. Return the
+        -- argument and a list of new tokens to insert into the input. This
+        -- allows us to handle short flags being crammed together, as well as a
+        -- short flag being right against its input.
+        findFlagArgTok flags (ShortFlaglike str) =
+            case find (shortFlagMatch flagStr) flags of
+                Nothing                 -> Left $ concat [ "Unknown flag "
+                                                         , argShortOpt settings
+                                                         , flagStr
+                                                         ]
+                (Just (Flag _ _ arg _)) -> Right $
+                    (arg, maybeToList . liftM2 ifJust null ShortFlaglike $ restStr)
             where
-                flagMatch (ShortFlaglike (c:[])) (Flag shortChars _ _ _) = c `elem` shortChars
-                flagMatch (ShortFlaglike str) (Flag shortChars _ _ _) = False
+                -- Decide whether to break off the first character based on
+                -- settings
+                (flagStr, restStr) = if argSplitShort settings
+                    then splitAt 1 str
+                    else (str, "")
 
-                flagMatch (LongFlaglike str) (Flag _ longNames _ _) = str `elem` longNames
+                shortFlagMatch str (Flag shortLs _ _ _) = str `elem` map show shortLs
+
+        findFlagArgTok flags (LongFlaglike str) =
+            case find (longFlagMatch flagStr) flags of
+                Nothing                 -> Left $ concat [ "Unknown flag "
+                                                         , argLongOpt settings
+                                                         , flagStr
+                                                         ]
+                (Just (Flag _ _ arg _)) -> Right $
+                    (arg, maybeToList . liftM2 ifJust null NotFlaglike $ restStr)
+            where
+                -- Decide whether to break at the long separator based on
+                -- settings
+                (flagStr, restStr) = if argSplitLong settings
+                    then breakOn (argLongSep settings) str
+                    else (str, "")
+
+                longFlagMatch str (Flag _ longLs _ _) = str `elem` longLs
 
 
         -- Find a subcommand and its sub-description by its name
@@ -251,7 +329,7 @@ argParse settings descr args =
                 Nothing                       -> Left $ "Unknown subcommand " ++ str
                 (Just (Subcommand _ _ descr)) -> Right $ descr
             where
-                subcommandMatch str (Subcommand name _ _) = str == name
+                subcommandMatch str (Subcommand nameLs _ _) = str `elem` nameLs
 
 
         -- TODO: The rest of this looks pretty magical. I should go through it

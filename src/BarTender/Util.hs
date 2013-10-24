@@ -45,10 +45,32 @@ smartReadBool str = listToMaybe . catMaybes . map getResult $
         getResult (bool, ls) = ifJust ((elem . map toLower) str ls) bool
 
 maybeToEither :: Maybe a -> b -> Either b a
-maybeToEither Nothing  x = Left x
+maybeToEither Nothing  e = Left e
 maybeToEither (Just x) _ = Right x
 
 -- | Join a list of strings by spaces
 spaced :: [String] -> String
 spaced = intercalate " "
+
+-- | Break a list on the first occurrence of a delimiter sublist. Returns the
+-- sublists before and after the delimiter as a pair, or the entire list and
+-- the empty list if the delimiter never occurs as a sublist.
+breakOn :: Eq a
+        => [a] -- ^ The delimiter
+        -> [a] -- ^ The list to break
+        -> ([a], [a])
+breakOn delim str = process [] [] str
+    where
+        process prefixLs infixLs []
+            | infixLs == delim = (prefixLs, [])
+            | otherwise        = (prefixLs ++ infixLs, [])
+
+        process prefixLs [] (d:suffixLs)
+            | [] == delim = (prefixLs, d:suffixLs)
+            | otherwise   = process prefixLs [d] suffixLs
+
+        process prefixLs (c:infixLs) (d:suffixLs)
+            | (c:infixLs) == delim         = (prefixLs, d:suffixLs)
+            | isPrefixOf (c:infixLs) delim = process prefixLs (c:infixLs ++ [d]) suffixLs
+            | otherwise                    = process (prefixLs ++ [c]) infixLs (d:suffixLs)
 
