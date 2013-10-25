@@ -39,7 +39,7 @@ type TimerStateT a = StateT (Maybe ThreadId) IO a
 -- | Create a new timer in a stopped state.
 newTimer :: Int      -- ^ The timeout in seconds
          -> IO Bool  -- ^ The action to perform. The return value indicates
-                     -- whether the timer should continue or stop.
+                     --   whether the timer should continue or stop.
          -> IO Timer
 newTimer timeout action = do
     chan <- newTChanIO

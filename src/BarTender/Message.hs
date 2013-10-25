@@ -18,31 +18,31 @@ import BarTender.Util
 
 -- | The message body of a request
 data Message = RAck Int Int Int   -- ^ Message for a client to begin sending
-                                  -- updates. Contains the client's assigned
-                                  -- ID and the server's timeout and version.
+                                  --   updates. Contains the client's assigned
+                                  --   ID and the server's timeout and version.
 
              | RAlive Int         -- ^ Message to not drop the client. Contains
-                                  -- the client's ID.
+                                  --   the client's ID.
 
              | RError String      -- ^ Message to indicate that the previous
-                                  -- message was not accepted. Contains the
-                                  -- error message.
+                                  --   message was not accepted. Contains the
+                                  --   error message.
 
              | RInit String       -- ^ Message for the server to initialize a
-                                  -- new client. Contains the client's name.
+                                  --   new client. Contains the client's name.
 
              | RKill Int          -- ^ Message for the server to immediately
-                                  -- kill a client.
+                                  --   kill a client.
 
              | RMalformed String  -- ^ An improperly formed message. Contains
-                                  -- the message contents.
+                                  --   the message contents.
 
              | RPoke              -- ^ Message for a client to send up update.
-                                  -- Sent by the server before dropping the
-                                  -- client.
+                                  --   Sent by the server before dropping the
+                                  --   client.
 
              | RUpdate Int String -- ^ Message to update the status. Contains
-                                  -- the sender's ID and the new status.
+                                  --   the sender's ID and the new status.
 
              | RUnknown String    -- ^ An unrecognized message.
     deriving Eq

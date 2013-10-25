@@ -32,9 +32,9 @@ import BarTender.Widget
 data BarOptions = BarOptions
     { barMessageHandlers :: Int -- ^ The number of message handlers to fork
     , barTimeout         :: Int -- ^ The timeout in seconds for widgets to decay
-                                -- (live -> dying, dying -> dead).
+                                --   (live -> dying, dying -> dead).
     , barCleanupDelay    :: Int -- ^ The delay in seconds between sweeps to
-                                -- collect dead widgets
+                                --   collect dead widgets
     }
     deriving (Eq, Show)
 

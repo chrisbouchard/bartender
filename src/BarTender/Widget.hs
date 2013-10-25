@@ -66,7 +66,7 @@ nextIdVar = unsafePerformIO $ newTMVarIO 0
 
 -- | Create a new widget with the given name
 newWidget :: String -- ^ The widget's name
-          -> Int -- ^ The timeout for the widget's timer
+          -> Int    -- ^ The timeout for the widget's timer
           -> IO Widget
 newWidget name timeout = do
     debugM "StatusBar.Widget.newWidget" $ "Enter"

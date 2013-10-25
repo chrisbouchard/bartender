@@ -101,11 +101,11 @@ data ArgParseSettings = ArgParseSettings
     , argInverse     :: String -- ^ The prefix for flags that are inverses of
                                --   other flags
     , argSplitShort  :: Bool   -- ^ Whether groupings of short pairs should be
-                               --   split (i.e., -ofile to -o file and -abc to
-                               --   -a -b -c)
+                               --   split (i.e., @-ofile@ to @-o file@ and -abc
+                               --   to @-a -b -c@)
     , argSplitLong   :: Bool   -- ^ Whether long flags with an argument should
-                               --   be split (i.e., --flag=value to --flag
-                               --   value)
+                               --   be split (i.e., @--flag=value@ to @--flag
+                               --   value@)
     }
     deriving Show
 
@@ -166,16 +166,6 @@ argParse settings descr args =
         untag (ShortFlaglike str) = argShortOpt settings ++ str
         untag (LongFlaglike str) = argLongOpt settings ++ str
         untag (NotFlaglike str) = str
-
-
-        -- -- Break a long flag with an equal sign into two tokens: the flag and a
-        -- -- non-flaglike token containing the argument
-        -- splitFlag (LongFlaglike str) = [ LongFlaglike prefix ] ++
-        --                                (maybeToList . liftM2 ifJust null NotFlaglike $ suffix)
-        --     where (prefix, suffixWithSep) = break (== argLongSep settings) str
-        --           suffix = drop 1 suffixWithSep
-
-        -- splitFlag tok                = [tok]
 
 
         --- *** Multi-part definition of parseDescr ***
